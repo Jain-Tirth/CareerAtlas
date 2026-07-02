@@ -4,10 +4,9 @@ import { EmbeddingsService } from '../embeddings/embeddings.service';
 import { QdrantService } from '../vector-store/qdrant.service';
 import { LlmGatewayService } from '../llm-gateway/llm-gateway.service';
 import { Job } from '../discovery/discovery.service';
-import { PromptTemplate } from '@langchain/core/prompts';
-import { StructuredOutputParser } from '@langchain/core/output_parsers';
 
 export interface JobRequirements {
+  criticalSkills?: string[];
   requiredSkills: string[];
   preferredSkills: string[];
   experienceRequired: number;

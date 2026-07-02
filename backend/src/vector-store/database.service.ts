@@ -82,7 +82,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           locations TEXT[] NOT NULL,
           remote BOOLEAN NOT NULL,
           employment_types TEXT[] NOT NULL,
-          salary_expectation INTEGER,
           experience_years NUMERIC(3,1) NOT NULL,
           education TEXT[] DEFAULT '{}',
           projects TEXT[] DEFAULT '{}',
@@ -93,6 +92,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       // Ensure new columns and types exist for existing tables
       await client.query(`
         ALTER TABLE user_preferences ALTER COLUMN experience_years TYPE NUMERIC(3,1);
+        ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS salary_expectation INTEGER;
         ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS education TEXT[] DEFAULT '{}';
         ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS projects TEXT[] DEFAULT '{}';
         ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS achievements TEXT[] DEFAULT '{}';
@@ -142,8 +142,16 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         CREATE SEQUENCE IF NOT EXISTS workflow_run_id_seq START WITH 1;
       `);
 
+      // 6. Create indexes for fast retrieval
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_results_user_run ON results(user_id, run_id);
+      `);
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_user_skills_user ON user_skills(user_id);
+      `);
+
       await client.query('COMMIT');
-      this.logger.log('[DATABASE] Database schema initialized successfully.');
+      this.logger.log('[DATABASE] Database schema and indexes initialized successfully.');
     } catch (err) {
       await client.query('ROLLBACK');
       this.logger.error(`[DATABASE] Failed to initialize database schema: ${err.message}`, err.stack);

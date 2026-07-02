@@ -41,12 +41,28 @@ export class MatchingWorker extends WorkerHost {
     const searchTerm = searchTerms[activeTermIndex] || '';
 
     try {
-      this.coordinator.updateStep(runId, 'step-6', 'running');
-      this.coordinator.addLog(runId, `[Cycle ${currentCycle}] Running Vector Search, Hard Filters, and matching algorithms for "${searchTerm}"...`);
+      await this.coordinator.updateStep(runId, 'step-6', 'running');
+      await this.coordinator.addLog(runId, `[Cycle ${currentCycle}] Running Vector Search, Hard Filters, and matching algorithms for "${searchTerm}"...`);
 
       // Run Matching & Ranking engine against Qdrant
-      const rankedMatches = await this.matchingService.matchAndRankJobs(userId, limit);
-      this.logger.log(`[MATCHING-WORKER] Found ${rankedMatches.length} matching jobs under run ${runId}`);
+      const currentMatches = await this.matchingService.matchAndRankJobs(userId, limit);
+      this.logger.log(`[MATCHING-WORKER] Found ${currentMatches.length} matching jobs in current cycle under run ${runId}`);
+
+      // Merge and deduplicate matches across cycles/terms
+      const prevMatches = payload.accumulatedMatches || [];
+      const allMatchesMap = new Map<string, any>();
+      for (const match of prevMatches) {
+        if (match && match.job && match.job.jobId) {
+          allMatchesMap.set(match.job.jobId, match);
+        }
+      }
+      for (const match of currentMatches) {
+        if (match && match.job && match.job.jobId) {
+          allMatchesMap.set(match.job.jobId, match);
+        }
+      }
+      const rankedMatches = Array.from(allMatchesMap.values());
+      this.logger.log(`[MATCHING-WORKER] Total accumulated matching jobs under run ${runId}: ${rankedMatches.length}`);
       
       const meetsLimit = rankedMatches.length >= limit;
 
@@ -56,11 +72,11 @@ export class MatchingWorker extends WorkerHost {
           const nextCycle = currentCycle + 1;
           const nextPage = page + 1;
 
-          this.coordinator.addLog(
+          await this.coordinator.addLog(
             runId,
             `[Cycle ${currentCycle}] Found ${rankedMatches.length}/${limit} matches. Starting Cycle ${nextCycle} for "${searchTerm}"...`
           );
-          this.coordinator.updateStep(runId, 'step-6', 'success');
+          await this.coordinator.updateStep(runId, 'step-6', 'success');
 
           await this.discoveryQueue.add('discover-jobs', {
             ...payload,
@@ -75,11 +91,11 @@ export class MatchingWorker extends WorkerHost {
           const nextTermIndex = activeTermIndex + 1;
           const nextTerm = searchTerms[nextTermIndex];
 
-          this.coordinator.addLog(
+          await this.coordinator.addLog(
             runId,
             `[Cycle ${currentCycle}] Completed all cycles for "${searchTerm}". Moving to next search title: "${nextTerm}"...`
           );
-          this.coordinator.updateStep(runId, 'step-6', 'success');
+          await this.coordinator.updateStep(runId, 'step-6', 'success');
 
           await this.discoveryQueue.add('discover-jobs', {
             ...payload,
@@ -94,9 +110,9 @@ export class MatchingWorker extends WorkerHost {
       }
 
       // We either met the limit or reached maxCycles. Perform ranking & notifications.
-      this.coordinator.updateStep(runId, 'step-6', 'success');
-      this.coordinator.updateStep(runId, 'step-7', 'running');
-      this.coordinator.addLog(runId, `Selecting top job matches and generating personalized AI explanations...`);
+      await this.coordinator.updateStep(runId, 'step-6', 'success');
+      await this.coordinator.updateStep(runId, 'step-7', 'running');
+      await this.coordinator.addLog(runId, `Selecting top job matches and generating personalized AI explanations...`);
 
       // Sort and select top jobs up to the requested limit
       const sortedJobs = rankedMatches.sort((a, b) => b.finalScore - a.finalScore);
@@ -119,7 +135,7 @@ export class MatchingWorker extends WorkerHost {
         if (profileObj) {
           try {
             const reasoningPrompt = `
-              You are an expert career agent. Write a concise, 2-sentence explanation of why the following job is a great match for the candidate.
+              You are an expert career agent. Write a concise, 2-sentence explanation of why the following job matches (or why the matching score is slightly lower/higher) for the candidate.
               
               Job Details:
               - Title: ${job.title}
@@ -131,8 +147,22 @@ export class MatchingWorker extends WorkerHost {
               - Skills: ${profileObj.skills.join(', ')}
               - Experience: ${profileObj.experienceYears} years
               
-              Explain the match clearly and professionally, highlighting the candidate's skills and projects that align.
-              Do not include any greeting or conversational fluff. Write exactly 2 sentences.
+              Match Analysis:
+              - Eligibility: ${match.eligibility}
+              - Match Score: ${finalScore}%
+              - Core Domain Match: Family (${match.familyScore}%), Subfamily (${match.subFamilyScore}%)
+              - Required Skills Match: ${match.requiredSkillScore}%
+              - Preferred Skills Match: ${match.preferredSkillScore}%
+              - Experience Score: ${experienceScore}%
+              - Location Score: ${match.locationScore}%
+              - Structured Match Details: ${reasoning}
+              
+              Guidelines:
+              1. If the candidate is a perfect match (all required skills matched, high score), write a highly positive response mentioning they are a perfect match.
+              2. If the candidate is missing any preferred skills, explain that the ranking is slightly lower because they miss specific preferred skills (mention those missing preferred skills).
+              3. If they failed eligibility or have low scores, be honest but professional about the mismatch in critical skills.
+              4. Explain the match clearly and professionally, highlighting the candidate's skills and projects that align.
+              5. Do not include any greeting or conversational fluff. Write exactly 2 sentences.
             `;
             const startTime = Date.now();
             const response = await this.profileService.invokeModel(reasoningPrompt);
@@ -168,7 +198,7 @@ export class MatchingWorker extends WorkerHost {
 
           if (insertRes.rowCount === 0) {
             this.logger.log(`[MATCHING-WORKER] Skipping duplicate save: Job "${job.title}" at "${job.company}" already exists in database.`);
-            this.coordinator.addLog(runId, `Skipping duplicate: "${job.title}" at "${job.company}" is already saved.`);
+            await this.coordinator.addLog(runId, `Skipping duplicate: "${job.title}" at "${job.company}" is already saved.`);
             continue;
           }
         } catch (dbErr) {
@@ -176,18 +206,18 @@ export class MatchingWorker extends WorkerHost {
           continue; 
         }
 
-        this.coordinator.addLog(runId, `Recommendation result saved successfully for "${job.title}" at ${job.company}.`);
+        await this.coordinator.addLog(runId, `Recommendation result saved successfully for "${job.title}" at ${job.company}.`);
       }
 
       this.logger.log(`Workflow finalizer completed. Top job matches finalized.`);
 
-      this.coordinator.updateStep(runId, 'step-7', 'success');
-      this.coordinator.completeRun(runId, `Workflow completed successfully. Found ${topJobs.length} matching jobs.`);
+      await this.coordinator.updateStep(runId, 'step-7', 'success');
+      await this.coordinator.completeRun(runId, `Workflow completed successfully. Found ${topJobs.length} matching jobs.`);
 
       return { completed: true, count: topJobs.length };
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error(`[MATCHING-WORKER] Matching worker failed: ${err.message}`, err.stack);
-      this.coordinator.failRun(runId, `Matching stage failed: ${err.message}`);
+      await this.coordinator.failRun(runId, `Matching stage failed: ${err.message}`);
       throw err;
     }
   }

@@ -19,8 +19,8 @@ export class AgentService implements OnApplicationBootstrap {
     @InjectQueue('job-discovery') private readonly discoveryQueue: Queue,
   ) {}
 
-  getPipelineStatus() {
-    return this.coordinator.getActiveRunStatus();
+  async getPipelineStatus() {
+    return await this.coordinator.getActiveRunStatus();
   }
 
   async onApplicationBootstrap() {
@@ -54,7 +54,7 @@ export class AgentService implements OnApplicationBootstrap {
       } else {
         this.logger.warn('[ORCHESTRATOR] No active profile found in profile.json to sync. Waiting for resume upload.');
       }
-    } catch (err) {
+    } catch (err : any) {
       this.logger.error(`[ORCHESTRATOR] Failed to sync profile.json to database on startup: ${err.message}`);
     }
   }
@@ -70,16 +70,15 @@ export class AgentService implements OnApplicationBootstrap {
     isRemoteOpen: boolean,
     userEmail?: string,
     employmentTypes?: string[],
-    salaryExpectation?: number | null
   ) {
     this.logger.log('[ORCHESTRATOR] Starting background job recommendation suite via BullMQ...');
 
     const runId = await this.db.getNextExecutionId();
     
     // Start run registration in coordinator
-    this.coordinator.startRun(runId, this.activeUserId, searchTerms, locationSearch, 5);
-    this.coordinator.updateStep(runId, 'step-1', 'running');
-    this.coordinator.addLog(runId, 'Syncing profile details and user embedding with PostgreSQL / Supabase...');
+    await this.coordinator.startRun(runId, this.activeUserId, searchTerms, locationSearch, 5);
+    await this.coordinator.updateStep(runId, 'step-1', 'running');
+    await this.coordinator.addLog(runId, 'Syncing profile details and user embedding with PostgreSQL / Supabase...');
 
     let resolvedUserId = this.activeUserId;
     try {
@@ -102,44 +101,41 @@ export class AgentService implements OnApplicationBootstrap {
           profile.preferences.locations = [locationPref];
           profile.preferences.remote = isRemoteOpen;
           profile.preferences.employmentTypes = employmentTypes || ['Full-time'];
-          profile.preferences.salaryExpectation = salaryExpectation ?? undefined;
 
           // saveProfileToDb updates SQL tables AND updates the Qdrant user_embeddings collection
           await this.profileService.saveProfileToDb(profile);
-          this.logger.log(`[ORCHESTRATOR] Synchronized runtime preferences and regenerated Qdrant embeddings for User ID ${resolvedUserId}: locations=[${locationPref}], remote=${isRemoteOpen}, employmentTypes=${JSON.stringify(employmentTypes)}, salaryExpectation=${salaryExpectation}`);
-          this.coordinator.addLog(runId, `Runtime preferences and Qdrant vector embeddings synchronized for User ID ${resolvedUserId}.`);
+          this.logger.log(`[ORCHESTRATOR] Synchronized runtime preferences and regenerated Qdrant embeddings for User ID ${resolvedUserId}: locations=[${locationPref}], remote=${isRemoteOpen}, employmentTypes=${JSON.stringify(employmentTypes)}`);
+          await this.coordinator.addLog(runId, `Runtime preferences and Qdrant vector embeddings synchronized for User ID ${resolvedUserId}.`);
         } else {
           // Fallback SQL upsert if no parsed profile exists yet
           await this.db.query(`
-            INSERT INTO user_preferences (user_id, preferred_roles, locations, remote, employment_types, salary_expectation, experience_years)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO user_preferences (user_id, preferred_roles, locations, remote, employment_types, experience_years)
+            VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT (user_id) DO UPDATE
             SET locations = EXCLUDED.locations,
                 remote = EXCLUDED.remote,
                 preferred_roles = EXCLUDED.preferred_roles,
-                employment_types = EXCLUDED.employment_types,
-                salary_expectation = EXCLUDED.salary_expectation;
+                employment_types = EXCLUDED.employment_types;
           `, [
             resolvedUserId,
             searchTerms,
             [locationPref],
             isRemoteOpen,
             employmentTypes || ['Full-time'],
-            salaryExpectation ?? null,
             0
           ]);
           this.logger.log(`[ORCHESTRATOR] SQL upsert fallback for User ID ${resolvedUserId}: locations=[${locationPref}], remote=${isRemoteOpen}`);
-          this.coordinator.addLog(runId, `Runtime preferences fallback synchronized for User ID ${resolvedUserId}.`);
+          await this.coordinator.addLog(runId, `Runtime preferences fallback synchronized for User ID ${resolvedUserId}.`);
         }
 
         // Update the latest run ID in user preferences
         await this.db.query('UPDATE user_preferences SET latest_run_id = $1 WHERE user_id = $2', [runId, resolvedUserId]);
-        this.coordinator.updateStep(runId, 'step-1', 'success');
+        await this.coordinator.updateStep(runId, 'step-1', 'success');
       }
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error(`[ORCHESTRATOR] Failed to resolve active user ID and preferences: ${err.message}`);
-      this.coordinator.failRun(runId, `Failed to sync profile: ${err.message}`);
-      this.coordinator.updateStep(runId, 'step-1', 'error', err.message);
+      await this.coordinator.failRun(runId, `Failed to sync profile: ${err.message}`);
+      await this.coordinator.updateStep(runId, 'step-1', 'error', err.message);
       return;
     }
 
@@ -161,10 +157,10 @@ export class AgentService implements OnApplicationBootstrap {
       });
 
       this.logger.log(`[ORCHESTRATOR] Successfully enqueued job search workflow in BullMQ for run ID: ${runId}`);
-      this.coordinator.addLog(runId, `Workflow enqueued in BullMQ. Queue processing active.`);
-    } catch (err) {
+      await this.coordinator.addLog(runId, `Workflow enqueued in BullMQ. Queue processing active.`);
+    } catch (err: any) {
       this.logger.error(`[ORCHESTRATOR] Failed to enqueue workflow to BullMQ: ${err.message}`);
-      this.coordinator.failRun(runId, `Enqueue failed: ${err.message}`);
+      await this.coordinator.failRun(runId, `Enqueue failed: ${err.message}`);
     }
   }
 
@@ -194,7 +190,7 @@ export class AgentService implements OnApplicationBootstrap {
       `, [resolvedUserId, latestRunId]);
 
       return resultsRes.rows;
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error(`[ORCHESTRATOR] Failed to retrieve workflow results from DB: ${err.message}`);
       return [];
     }
@@ -220,7 +216,7 @@ export class AgentService implements OnApplicationBootstrap {
       fs.writeFileSync(processedFilePath, JSON.stringify([]), 'utf-8');
       fs.writeFileSync(matchedFilePath, JSON.stringify([]), 'utf-8');
       this.logger.log('[ORCHESTRATOR] Reset processed_jobs.json and seen_jobs.json caches.');
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error(`[ORCHESTRATOR] Failed to clear history: ${err.message}`);
       throw err;
     }
