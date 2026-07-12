@@ -548,19 +548,11 @@ canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
       } else {
         suggestions = activeProfile.preferredRoles;
       }
-      console.log(`
-[TRACE] after_suggestions:
-canonical_role: ${JSON.stringify(activeProfile.preferredRoles)}
-suggestions: ${JSON.stringify(suggestions)}
-`);
+      console.log(`[TRACE] after_suggestions: canonical_role: ${JSON.stringify(activeProfile.preferredRoles)} suggestions: ${JSON.stringify(suggestions)}`);
       return suggestions;
     } catch (e) {
       this.logger.error(`[PROFILE] Failed to suggest titles: ${e.message}`);
-      console.log(`
-[TRACE] after_suggestions:
-canonical_role: ${JSON.stringify(activeProfile.preferredRoles)}
-suggestions: ${JSON.stringify(activeProfile.preferredRoles)}
-`);
+      console.log(`[TRACE] after_suggestions:canonical_role: ${JSON.stringify(activeProfile.preferredRoles)}suggestions: ${JSON.stringify(activeProfile.preferredRoles)}`);
       return activeProfile.preferredRoles;
     }
   }
