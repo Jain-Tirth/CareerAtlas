@@ -83,16 +83,16 @@ export class ProfileService {
 
 
   async invokeModel(promptText: string): Promise<string> {
-    return this.invokeModelWithFallback(promptText);
+    return this.invokeModelWithFallback(promptText, 'general');
   }
 
 
-  private async invokeModelWithFallback(promptText: string): Promise<string> {
+  private async invokeModelWithFallback(promptText: string, purpose?: 'resume-parsing' | 'general'): Promise<string> {
     try {
       return await this.llmGatewayService.invokeLLM(async (model) => {
         const response = await model.invoke(promptText);
         return response.content as string;
-      });
+      }, 2, { purpose });
     } catch (err) {
       this.logger.error(`[PROFILE: LLM] All LLM providers/keys failed: ${err.message}`);
       throw err;
@@ -131,6 +131,53 @@ export class ProfileService {
     
     if (startIndex !== -1) {
       cleaned = cleaned.substring(startIndex);
+      
+      // Try to find the matching closing brace/bracket and truncate trailing text
+      let inString = false;
+      let escape = false;
+      const stack: string[] = [];
+      let endOfJson = -1;
+
+      for (let i = 0; i < cleaned.length; i++) {
+        const char = cleaned[i];
+        if (escape) {
+          escape = false;
+          continue;
+        }
+        if (char === '\\') {
+          escape = true;
+          continue;
+        }
+        if (char === '"') {
+          inString = !inString;
+          continue;
+        }
+        if (!inString) {
+          if (char === '{' || char === '[') {
+            stack.push(char);
+          } else if (char === '}') {
+            if (stack[stack.length - 1] === '{') {
+              stack.pop();
+              if (stack.length === 0) {
+                endOfJson = i + 1;
+                break;
+              }
+            }
+          } else if (char === ']') {
+            if (stack[stack.length - 1] === '[') {
+              stack.pop();
+              if (stack.length === 0) {
+                endOfJson = i + 1;
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      if (endOfJson !== -1) {
+        cleaned = cleaned.substring(0, endOfJson);
+      }
     }
 
     // Handle case where LLM starts with empty braces followed by properties, e.g. "{}\n\"property\": ..."
@@ -274,7 +321,7 @@ Resume:${pdfText.substring(0, 8000)}.Return ONLY a valid JSON object with this s
 Rules:Return ONLY raw JSON. No markdown or explanations.Never use example values or invent information.Extract "experienceYears" ONLY from the Work Experience / Employment / Professional Experience/Summary section/Calculate the duration of work experience in years, if not then populate to 0. Do NOT infer it from graduation year, projects, internships (unless listed as work experience), skills, certifications, or any other section.Populate "preferredRoles" ONLY if the resume explicitly states desired roles/objective/career preference or clearly mentions target roles. Otherwise return an empty array.Extract only information explicitly present in the resume.Use empty arrays for missing list fields and empty strings for missing string fields.`;
 
     try {
-      const responseText = await this.invokeModelWithFallback(prompt);
+      const responseText = await this.invokeModelWithFallback(prompt, 'resume-parsing');
       const cleanedResponse = this.cleanJsonText(responseText);
       
       let parsedResult: any;
@@ -523,7 +570,7 @@ canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
     });
 
     try {
-      const responseText = await this.invokeModelWithFallback(formattedPrompt);
+      const responseText = await this.invokeModelWithFallback(formattedPrompt, 'general');
       const cleanedResponse = this.cleanJsonText(responseText);
       const parsed = JSON.parse(cleanedResponse);
       let suggestions: string[] = [];

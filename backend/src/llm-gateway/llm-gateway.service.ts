@@ -25,28 +25,28 @@ export class LlmGatewayService implements OnModuleInit {
   }
   // Get the keys from the env
   private initializeFromEnv() {
-    // 1. Load Openrouter 
+    // 1. Load Openrouter (For resume parsing only)
     const openrouter = this.parseKeys(process.env.OPENROUTER_API_KEY);
     if (openrouter) {
-      openrouter.forEach((key, index) => this.addProvider(`openrouter-key-${index + 1}`, `Open router key #${index + 1}`, 'openrouter', key, 1))
+      openrouter.forEach((key, index) => this.addProvider(`openrouter-key-${index + 1}`, `Open router key #${index + 1}`, 'openrouter', key, 1));
     }
     
-    // 2. Load Groq Keys
+    // 2. Load Gemini Keys (Gemma 4 model via gemini api - priority 1 for general)
+    const geminiKeys = this.parseKeys(process.env.GEMINI_API_KEY);
+    geminiKeys.forEach((key, index) => {
+      this.addProvider(`gemini-key-${index + 1}`, `Gemini Cloud Key #${index + 1}`, 'gemini', key, 1);
+    });
+
+    // 3. Load Groq Keys (GPT OSS 120B via groq api - priority 2 for general)
     const groqKeys = this.parseKeys(process.env.GROQ_API_KEY);
     groqKeys.forEach((key, index) => {
-      this.addProvider(`groq - key - ${ index + 1} `, `Groq Cloud Key #${ index + 1 } `, 'groq', key, 2);
+      this.addProvider(`groq-key-${index + 1}`, `Groq Cloud Key #${index + 1}`, 'groq', key, 2);
     });
     
-    // 3. Gemma model
-    const geminiKeys = this.parseKeys(process.env.GEMINI_API_KEY)
-    geminiKeys.forEach((key, index) => {
-      this.addProvider(`gemini - key - ${ index + 1 } `, `Gemini Cloud Key #${ index + 1 } `, 'gemini', key, 3);
-    });
-    
-    // 4. Load OmniRoute
+    // 4. Load OmniRoute (priority 3 for general)
     const omnirouteKey = process.env.OMNIROUTE_API_KEY;
     if (omnirouteKey) {
-      this.addProvider('omniroute', 'OmniRoute Provider', 'omniroute', omnirouteKey, 4);
+      this.addProvider('omniroute', 'OmniRoute Provider', 'omniroute', omnirouteKey, 3);
     }
   }
 
@@ -135,14 +135,16 @@ export class LlmGatewayService implements OnModuleInit {
    */
   async invokeLLM < T = any > (
       promptRunner: (model: BaseChatModel) => Promise<T>,
-        maxRetries = 2
+      maxRetries = 2,
+      options?: { purpose?: 'resume-parsing' | 'general' }
   ): Promise < T > {
       let attempts = 0;
+      const purpose = options?.purpose || 'general';
 
       while(attempts <= maxRetries) {
-      const provider = this.getBestProvider();
+      const provider = this.getBestProvider(purpose);
       if (!provider) {
-        throw new Error('[LLM-GATEWAY] No healthy LLM providers/keys are currently available.');
+        throw new Error(`[LLM-GATEWAY] No healthy LLM providers/keys are currently available for purpose: ${purpose}.`);
       }
 
       provider.activeRequests++;
@@ -173,14 +175,26 @@ export class LlmGatewayService implements OnModuleInit {
     throw new Error('[LLM-GATEWAY] Request invocation failed.');
   }
 
-  private getBestProvider(): LLMProvider | null {
+  private getBestProvider(purpose?: 'resume-parsing' | 'general'): LLMProvider | null {
     const now = Date.now();
-    const healthy = this.providers.filter(p => p.cooldownUntil <= now);
+    
+    // Filter providers based on purpose:
+    // Resume parsing uses openrouter only. Everywhere else uses gemini, groq, omniroute.
+    let filteredProviders = this.providers;
+    if (purpose === 'resume-parsing') {
+      filteredProviders = this.providers.filter(p => p.type === 'openrouter');
+    } else {
+      filteredProviders = this.providers.filter(
+        p => p.type === 'gemini' || p.type === 'groq' || p.type === 'omniroute'
+      );
+    }
+
+    const healthy = filteredProviders.filter(p => p.cooldownUntil <= now);
 
     if (healthy.length === 0) {
       // Emergency: Return the key that will complete its cooldown earliest
-      if (this.providers.length > 0) {
-        return this.providers.reduce((earliest, p) => p.cooldownUntil < earliest.cooldownUntil ? p : earliest);
+      if (filteredProviders.length > 0) {
+        return filteredProviders.reduce((earliest, p) => p.cooldownUntil < earliest.cooldownUntil ? p : earliest);
       }
       return null;
     }

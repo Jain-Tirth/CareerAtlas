@@ -32,7 +32,7 @@ export class JobIntelligenceService {
       return await this.llmGatewayService.invokeLLM(async (model) => {
         const response = await model.invoke(promptText);
         return response.content as string;
-      });
+      }, 2, { purpose: 'general' });
     } catch (err) {
       this.logger.error(`[JOB-INTEL: LLM] All LLM providers/keys failed: ${err.message}`);
       throw err;
@@ -71,6 +71,53 @@ export class JobIntelligenceService {
     
     if (startIndex !== -1) {
       cleaned = cleaned.substring(startIndex);
+      
+      // Try to find the matching closing brace/bracket and truncate trailing text
+      let inString = false;
+      let escape = false;
+      const stack: string[] = [];
+      let endOfJson = -1;
+
+      for (let i = 0; i < cleaned.length; i++) {
+        const char = cleaned[i];
+        if (escape) {
+          escape = false;
+          continue;
+        }
+        if (char === '\\') {
+          escape = true;
+          continue;
+        }
+        if (char === '"') {
+          inString = !inString;
+          continue;
+        }
+        if (!inString) {
+          if (char === '{' || char === '[') {
+            stack.push(char);
+          } else if (char === '}') {
+            if (stack[stack.length - 1] === '{') {
+              stack.pop();
+              if (stack.length === 0) {
+                endOfJson = i + 1;
+                break;
+              }
+            }
+          } else if (char === ']') {
+            if (stack[stack.length - 1] === '[') {
+              stack.pop();
+              if (stack.length === 0) {
+                endOfJson = i + 1;
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      if (endOfJson !== -1) {
+        cleaned = cleaned.substring(0, endOfJson);
+      }
     }
 
     // Strip single-line comments (//...) but avoid stripping double slashes in URLs (http:// or https://)
