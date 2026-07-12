@@ -74,7 +74,7 @@ export class LlmGatewayService implements OnModuleInit {
     } else if(type === 'gemini') {
         client = new ChatGoogleGenerativeAI({
           apiKey,
-          modelName: 'gemma-4-3b-it',
+          modelName: 'gemma-4-31b-it',
           temperature: 0,
         });
       }

@@ -269,25 +269,9 @@ export class ProfileService {
     this.emitTaskEvent(taskId, 'running', 'Running AI LLM parsing agent on resume content...');
     this.logger.log('[PROFILE] Structuring resume content via LLM...');
 
-    const prompt = `You are an elite talent acquisition AI. Parse the following raw text from a candidate's resume PDF and extract it into a structured format.
-
-Raw Resume Text:
-${pdfText.substring(0, 30000)}
-
-You MUST respond ONLY with a valid JSON object matching the following structure:
-{
-  "fullName": "John Doe",
-  "email": "johndoe@example.com",
-  "phone": "+1234567890",
-  "skills": ["TypeScript", "NestJS", "PostgreSQL"],
-  "experienceYears": 3.5,
-  "education": ["B.Tech in Computer Science, IIT Bombay, 2022"],
-  "projects": ["Built autonomous recommendation engine using pgvector"],
-  "achievements": ["Ranked 1st in national level hackathon"],
-  "preferredRoles": ["Software Engineer", "Backend Developer"]
-}
-
-Understand the intent of the resume and ONLY THEN DECIDE WHETHER TO ADD A PREFFERED ROLE OR NOT.Extract the experience from the WORK SECTION of the resume AND NOT FROM ANYWHERE ELSE EXPLICITLY. DO NOT GUESS OR COPY THIS EXAMPLE VALUES.DO NOT INCLUDE ANY CONVERSATIONAL FILLER, EXPLANATION, OR MARKDOWN FORMATTING (such as \`\`\`json). RETURN ONLY THE RAW JSON OBJECT.`;
+    const prompt = `Parse the following resume text into a JSON object.
+Resume:${pdfText.substring(0, 8000)}.Return ONLY a valid JSON object with this schema:{"fullName": "","email": "","phone": "","skills": [],"experienceYears": 0,"education": [],"projects": [],"achievements": [],"preferredRoles": []}
+Rules:Return ONLY raw JSON. No markdown or explanations.Never use example values or invent information.Extract "experienceYears" ONLY from the Work Experience / Employment / Professional Experience/Summary section/Calculate the duration of work experience in years, if not then populate to 0. Do NOT infer it from graduation year, projects, internships (unless listed as work experience), skills, certifications, or any other section.Populate "preferredRoles" ONLY if the resume explicitly states desired roles/objective/career preference or clearly mentions target roles. Otherwise return an empty array.Extract only information explicitly present in the resume.Use empty arrays for missing list fields and empty strings for missing string fields.`;
 
     try {
       const responseText = await this.invokeModelWithFallback(prompt);
