@@ -219,10 +219,12 @@ export default function Home() {
             }
             addLog(`Resume parsed successfully for ${parsedData.fullName}!`);
             
-            // Auto-fetch suggestions and results after upload completion
-            await fetchSuggestions(parsedData.email);
-            fetchResults(parsedData.email);
+            // Set parsing state to false immediately so UI loader stops
             setParsing(false);
+
+            // Auto-fetch suggestions and results after upload completion (in background)
+            fetchSuggestions(parsedData.email);
+            fetchResults(parsedData.email);
           } else if (data.status === "error") {
             eventSource.close();
             addLog(`Error parsing resume: ${data.errorDetails}`);

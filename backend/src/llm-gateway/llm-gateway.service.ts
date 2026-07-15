@@ -27,7 +27,7 @@ export class LlmGatewayService implements OnModuleInit {
   }
   // Get the keys from the env
   private initializeFromEnv() {
-    // 1. Load Openrouter 
+    // 1. Load Openrouter (For resume parsing only)
     const openrouter = this.parseKeys(process.env.OPENROUTER_API_KEY);
     if (openrouter) {
       openrouter.forEach((key, index) => {
@@ -164,7 +164,7 @@ export class LlmGatewayService implements OnModuleInit {
     while (attempts <= maxRetries) {
       const provider = this.getBestProvider();
       if (!provider) {
-        throw new Error('[LLM-GATEWAY] No healthy LLM providers/keys are currently available.');
+        throw new Error(`[LLM-GATEWAY] No healthy LLM providers/keys are currently available for purpose: ${purpose}.`);
       }
 
       provider.activeRequests++;
@@ -195,14 +195,26 @@ export class LlmGatewayService implements OnModuleInit {
     throw new Error('[LLM-GATEWAY] Request invocation failed.');
   }
 
-  private getBestProvider(): LLMProvider | null {
+  private getBestProvider(purpose?: 'resume-parsing' | 'general'): LLMProvider | null {
     const now = Date.now();
-    const healthy = this.providers.filter(p => p.cooldownUntil <= now);
+    
+    // Filter providers based on purpose:
+    // Resume parsing uses openrouter only. Everywhere else uses gemini, groq, omniroute.
+    let filteredProviders = this.providers;
+    if (purpose === 'resume-parsing') {
+      filteredProviders = this.providers.filter(p => p.type === 'openrouter');
+    } else {
+      filteredProviders = this.providers.filter(
+        p => p.type === 'gemini' || p.type === 'groq' || p.type === 'omniroute'
+      );
+    }
+
+    const healthy = filteredProviders.filter(p => p.cooldownUntil <= now);
 
     if (healthy.length === 0) {
       // Emergency: Return the key that will complete its cooldown earliest
-      if (this.providers.length > 0) {
-        return this.providers.reduce((earliest, p) => p.cooldownUntil < earliest.cooldownUntil ? p : earliest);
+      if (filteredProviders.length > 0) {
+        return filteredProviders.reduce((earliest, p) => p.cooldownUntil < earliest.cooldownUntil ? p : earliest);
       }
       return null;
     }
