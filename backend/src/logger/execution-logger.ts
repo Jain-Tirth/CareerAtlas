@@ -21,16 +21,38 @@ export class ExecutionLogger extends ConsoleLogger {
     return str.replace(/\u001b\[\d+m/g, '');
   }
 
-  private writeToFile(context: string, level: string, message: any, stackOrContext?: string) {
-    if (process.env.DEBUG !== 'true') {
-      return;
+  public static clearCombinedLog() {
+    try {
+      const cwd = process.cwd();
+      let workspaceRoot = cwd;
+      if (fs.existsSync(path.join(cwd, 'backend'))) {
+        workspaceRoot = cwd;
+      } else {
+        const parent = path.resolve(cwd, '..');
+        if (fs.existsSync(path.join(parent, 'backend'))) {
+          workspaceRoot = parent;
+        }
+      }
+      const outputDir = path.join(workspaceRoot, 'output');
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
+      const logFile = path.join(outputDir, 'backend.log');
+      fs.writeFileSync(logFile, '', 'utf8');
+    } catch (e) {
+      // Safe fallback
     }
+  }
 
+  private writeToFile(context: string, level: string, message: any, stackOrContext?: string) {
     // Automatically parse runId from the message if present
     const msgStr = String(message);
     const runIdMatch = msgStr.match(/run_\d+/);
     if (runIdMatch) {
-      ExecutionLogger.activeRunId = runIdMatch[0];
+      if (runIdMatch[0] !== ExecutionLogger.activeRunId) {
+        ExecutionLogger.activeRunId = runIdMatch[0];
+        ExecutionLogger.clearCombinedLog();
+      }
     }
 
     const timestamp = new Date().toLocaleString();
@@ -56,13 +78,20 @@ export class ExecutionLogger extends ConsoleLogger {
         fs.mkdirSync(outputDir, { recursive: true });
       }
       
-      const logFile = path.join(outputDir, `${cleanContext}.log`);
-      fs.appendFileSync(logFile, cleanLogLine, 'utf8');
+      // Always write to backend.log
+      const combinedLogFile = path.join(outputDir, 'backend.log');
+      fs.appendFileSync(combinedLogFile, cleanLogLine, 'utf8');
 
-      // Also write all errors to errors.log
-      if (level === 'error') {
-        const errorsFile = path.join(outputDir, 'errors.log');
-        fs.appendFileSync(errorsFile, cleanLogLine, 'utf8');
+      // Write context log only if DEBUG is true (preserving original behavior for separate context logs)
+      if (process.env.DEBUG === 'true') {
+        const logFile = path.join(outputDir, `${cleanContext}.log`);
+        fs.appendFileSync(logFile, cleanLogLine, 'utf8');
+
+        // Also write all errors to errors.log
+        if (level === 'error') {
+          const errorsFile = path.join(outputDir, 'errors.log');
+          fs.appendFileSync(errorsFile, cleanLogLine, 'utf8');
+        }
       }
     } catch (err) {
       // safe fallback
@@ -98,28 +127,42 @@ export class ExecutionLogger extends ConsoleLogger {
 // Singleton helper instance for backwards compatibility and direct runId updates
 class ExecutionLoggerHelper {
   set activeRunId(val: string | null) {
-    ExecutionLogger.activeRunId = val;
+    if (val && val !== ExecutionLogger.activeRunId) {
+      ExecutionLogger.activeRunId = val;
+      ExecutionLogger.clearCombinedLog();
+    } else {
+      ExecutionLogger.activeRunId = val;
+    }
   }
   get activeRunId(): string | null {
     return ExecutionLogger.activeRunId;
   }
 
   info(executionId: string, message: string, data?: any) {
-    ExecutionLogger.activeRunId = executionId;
+    if (executionId !== ExecutionLogger.activeRunId) {
+      ExecutionLogger.activeRunId = executionId;
+      ExecutionLogger.clearCombinedLog();
+    }
     const msgStr = data !== undefined ? `${message} - ${JSON.stringify(data)}` : message;
     const loggerInstance = new ExecutionLogger();
     loggerInstance.log(msgStr, 'ExecutionLogger');
   }
 
   warn(executionId: string, message: string, data?: any) {
-    ExecutionLogger.activeRunId = executionId;
+    if (executionId !== ExecutionLogger.activeRunId) {
+      ExecutionLogger.activeRunId = executionId;
+      ExecutionLogger.clearCombinedLog();
+    }
     const msgStr = data !== undefined ? `${message} - ${JSON.stringify(data)}` : message;
     const loggerInstance = new ExecutionLogger();
     loggerInstance.warn(msgStr, 'ExecutionLogger');
   }
 
   error(executionId: string, message: string, data?: any) {
-    ExecutionLogger.activeRunId = executionId;
+    if (executionId !== ExecutionLogger.activeRunId) {
+      ExecutionLogger.activeRunId = executionId;
+      ExecutionLogger.clearCombinedLog();
+    }
     const msgStr = data !== undefined ? `${message} - ${JSON.stringify(data)}` : message;
     const loggerInstance = new ExecutionLogger();
     loggerInstance.error(msgStr, undefined, 'ExecutionLogger');

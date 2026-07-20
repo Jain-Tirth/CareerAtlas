@@ -3,7 +3,8 @@
   import { MemoryService } from '../memory/memory.service';
   import { Job } from '../discovery/discovery.service';
   import { QdrantService } from '../vector-store/qdrant.service';
-  import {detectFamily, detectSubfamily } from '../matching/roleTaxonomy';
+  import { detectFamily, detectSubfamily } from '../matching/roleTaxonomy';
+  import { EmbeddingsService } from '../embeddings/embeddings.service';
   
   @Injectable()
   export class ValidationService implements OnModuleInit {
@@ -25,6 +26,7 @@
       private readonly db: DatabaseService,
       private readonly memoryService: MemoryService,
       private readonly qdrantService: QdrantService,
+      private readonly embeddingsService: EmbeddingsService,
     ) { }
 
 
@@ -46,10 +48,16 @@
         const uuid = QdrantService.stringToUuid(jobId);
         const res = await this.qdrantService.getClient().retrieve('job_embeddings', {
           ids: [uuid],
-          with_payload: false,
+          with_payload: true,
           with_vector: false,
         });
-        return res.length > 0;
+        if (res.length === 0) return false;
+        
+        const payload = res[0].payload as any;
+        if (!payload) return false;
+        
+        // Skip only if extraction status was SUCCESS
+        return payload.extractionStatus === 'SUCCESS';
       } catch (err) {
         this.logger.error(`[VALIDATION] Qdrant check for job embedding existence failed: ${err.message}`);
         return false;
@@ -74,11 +82,6 @@
         const isUrlActive = await this.isUrlActive(job.applyUrl);
         if (!isUrlActive) {
           return { valid: false, reason: 'Broken Link' };
-        }
-
-        // 4. Check Title Relevance
-        if (searchTerm && !this.isJobRelevant(job.title, searchTerm)) {
-          return { valid: false, reason: `Irrelevant title for search: "${searchTerm}"` };
         }
 
         // 6. Check if job already has vector embeddings in Qdrant
@@ -107,7 +110,33 @@
       'bay area': 'san francisco'
     };
 
-    private isJobRelevant(jobTitle: string, searchTerm: string): boolean {
+    private cosineSimilarity(vecA: number[], vecB: number[]): number {
+      let dotProduct = 0.0;
+      let normA = 0.0;
+      let normB = 0.0;
+      for (let i = 0; i < vecA.length; i++) {
+        dotProduct += vecA[i] * vecB[i];
+        normA += vecA[i] * vecA[i];
+        normB += vecB[i] * vecB[i];
+      }
+      if (normA === 0 || normB === 0) return 0;
+      return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    }
+
+    private async isSemanticTitleMatch(jobTitle: string, searchTerm: string): Promise<boolean> {
+      try {
+        const vecA = await this.embeddingsService.generateEmbedding(jobTitle.toLowerCase());
+        const vecB = await this.embeddingsService.generateEmbedding(searchTerm.toLowerCase());
+        const similarity = this.cosineSimilarity(vecA, vecB);
+        this.logger.log(`[VALIDATION] Semantic title similarity between "${jobTitle}" and "${searchTerm}": ${similarity.toFixed(3)}`);
+        return similarity >= 0.62;
+      } catch (err) {
+        this.logger.error(`[VALIDATION] Error calculating semantic title match: ${err.message}`);
+        return true; // Fallback to passing if comparison fails
+      }
+    }
+
+    private async isJobRelevant(jobTitle: string, searchTerm: string): Promise<boolean> {
       const titleLower = jobTitle.toLowerCase();
       const searchJobLower = searchTerm.toLowerCase();
 
@@ -142,7 +171,13 @@
         }
       }
 
-      this.logger.log(`[VALIDATION] Title "${jobTitle}" rejected due to family mismatch: titleFamily=${titleFamily}, searchFamily=${searchJobFamily}`);
+      // Semantic title similarity fallback check
+      const semanticMatch = await this.isSemanticTitleMatch(jobTitle, searchTerm);
+      if (semanticMatch) {
+        return true;
+      }
+
+      this.logger.log(`[VALIDATION] Title "${jobTitle}" rejected due to family mismatch and low semantic similarity with search term: "${searchTerm}"`);
       return false;
     }
    
@@ -283,9 +318,11 @@
 
         clearTimeout(timeoutId);
 
-        // Return true if HTTP status is OK or Redirect (2xx/3xx)
-        return response.status >= 200 && response.status < 400;
-      } catch (err) {
+        if (response.status === 404 || response.status === 410) {
+          return false;
+        }
+        return true;
+      } catch (err: any) {
         // If HEAD fails, fallback to GET with a 2-second timeout as some sites block HEAD requests
         try {
           const controller = new AbortController();
@@ -300,10 +337,17 @@
           });
 
           clearTimeout(timeoutId);
-          return response.status >= 200 && response.status < 400;
-        } catch (getErr) {
-          this.logger.warn(`[VALIDATION] URL connection check failed for: ${url} (${getErr.message})`);
-          return false;
+          if (response.status === 404 || response.status === 410) {
+            return false;
+          }
+          return true;
+        } catch (getErr: any) {
+          const errMsg = getErr.message || '';
+          if (errMsg.includes('ENOTFOUND') || errMsg.includes('getaddrinfo') || errMsg.includes('dns')) {
+            this.logger.warn(`[VALIDATION] URL connection check failed for: ${url} (${getErr.message})`);
+            return false;
+          }
+          return true;
         }
       }
     }

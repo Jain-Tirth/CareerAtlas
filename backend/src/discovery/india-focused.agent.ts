@@ -6,10 +6,11 @@ export class IndiaFocusedAgent {
   private readonly logger = new Logger(IndiaFocusedAgent.name);
   private readonly apiKey = process.env.TINYFISH_API_KEY;
 
-  private getDateFilter(): string {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const dateStr = sevenDaysAgo.toISOString().split('T')[0];
+  private getDateFilter(currentCycle = 1): string {
+    const days = currentCycle === 1 ? 7 : currentCycle === 2 ? 14 : 30;
+    const pastDate = new Date();
+    pastDate.setDate(pastDate.getDate() - days);
+    const dateStr = pastDate.toISOString().split('T')[0];
     return `after:${dateStr}`;
   }
 
@@ -22,8 +23,20 @@ export class IndiaFocusedAgent {
     return `"${cleaned}"`;
   }
 
-  async findJobs(searchTerm: string, locationPref: string, page: number): Promise<Job[]> {
-    this.logger.log(`[SCRAPER: INDIA_FOCUSED] Searching for '${searchTerm}' in '${locationPref}' (Page ${page})...`);
+  private getSeniorityQueryModifier(experienceYears: number): string {
+    if (experienceYears < 2) {
+      return '(junior OR fresher OR associate OR intern OR "sde 1" OR "sde-1" OR "entry-level" OR graduate)';
+    } else if (experienceYears >= 2 && experienceYears < 5) {
+      return '(mid OR "sde 2" OR "sde-2" OR developer OR engineer)';
+    } else if (experienceYears >= 5 && experienceYears < 8) {
+      return '(senior OR sr OR "sde 3" OR "sde-3")';
+    } else {
+      return '(lead OR staff OR principal OR architect OR manager OR director OR vp)';
+    }
+  }
+
+  async findJobs(searchTerm: string, locationPref: string, page: number, currentCycle?: number, experienceYears?: number): Promise<Job[]> {
+    this.logger.log(`[SCRAPER: INDIA_FOCUSED] Searching for '${searchTerm}' in '${locationPref}' (Page ${page}, Cycle ${currentCycle || 1}, Exp ${experienceYears !== undefined ? experienceYears : 'N/A'})...`);
     
     if (!this.apiKey) {
       this.logger.error('[SCRAPER: INDIA_FOCUSED] TINYFISH_API_KEY is not defined in .env. Skipping search.');
@@ -40,14 +53,15 @@ export class IndiaFocusedAgent {
 
     const jobs: Job[] = [];
     try {
-      const dateFilter = this.getDateFilter();
+      const dateFilter = this.getDateFilter(currentCycle);
       const expandedLoc = this.expandLocationForQuery(locationPref);
+      const modifier = experienceYears !== undefined ? ` ${this.getSeniorityQueryModifier(experienceYears)}` : '';
       
       // Try with date filter first
-      let query = `(site:instahyre.com/job OR site:cutshort.io/job OR site:naukri.com/job-listings) ${finalSearchTerm} ${expandedLoc} ${dateFilter}`;
+      let query = `(site:instahyre.com/job OR site:cutshort.io/job OR site:naukri.com/job-listings) ${finalSearchTerm}${modifier} ${expandedLoc} ${dateFilter}`;
       let searchUrl = `https://api.search.tinyfish.ai?query=${encodeURIComponent(query)}&page=${page - 1}`;
       
-      this.logger.log(`[SCRAPER: INDIA_FOCUSED] Querying TinyFish API (Attempt 1: With Date Filter) with query: "${query}"`);
+      this.logger.log(`[SCRAPER: INDIA_FOCUSED] Querying TinyFish API (Attempt 1: With Date + Seniority Filter) with query: "${query}"`);
       let response = await fetch(searchUrl, {
         method: 'GET',
         headers: { 'X-API-Key': this.apiKey },
@@ -60,9 +74,25 @@ export class IndiaFocusedAgent {
       let data = await response.json();
       let results = data.results || [];
 
-      // Fallback: if 0 results found, retry without date filter to capture undated/older active job posts
+      // Fallback 1: if 0 results found, retry without date filter to capture undated/older active job posts
       if (results.length === 0 && page === 1) {
-        this.logger.warn(`[SCRAPER: INDIA_FOCUSED] 0 results with date filter. Retrying without date filter for broader search...`);
+        this.logger.warn(`[SCRAPER: INDIA_FOCUSED] 0 results. Retrying without date filter but keeping seniority...`);
+        query = `(site:instahyre.com/job OR site:cutshort.io/job OR site:naukri.com/job-listings) ${finalSearchTerm}${modifier} ${expandedLoc}`;
+        searchUrl = `https://api.search.tinyfish.ai?query=${encodeURIComponent(query)}&page=${page - 1}`;
+        
+        response = await fetch(searchUrl, {
+          method: 'GET',
+          headers: { 'X-API-Key': this.apiKey },
+        });
+        if (response.ok) {
+          data = await response.json();
+          results = data.results || [];
+        }
+      }
+
+      // Fallback 2: if still 0 results, retry without seniority modifiers to ensure search is not empty
+      if (results.length === 0 && page === 1 && experienceYears !== undefined) {
+        this.logger.warn(`[SCRAPER: INDIA_FOCUSED] 0 results. Retrying without seniority modifiers...`);
         query = `(site:instahyre.com/job OR site:cutshort.io/job OR site:naukri.com/job-listings) ${finalSearchTerm} ${expandedLoc}`;
         searchUrl = `https://api.search.tinyfish.ai?query=${encodeURIComponent(query)}&page=${page - 1}`;
         

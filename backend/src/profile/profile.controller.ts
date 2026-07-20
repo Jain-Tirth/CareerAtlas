@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Body, UploadedFile, UseInterceptors, HttpCode, HttpStatus, Logger, Query, Param, Sse, MessageEvent } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ProfileService, UserProfile } from './profile.service';
-import { Observable } from 'rxjs';
+import { Observable, interval, merge } from 'rxjs';
 import { map, filter } from 'rxjs/operators';
 
 export interface StartWorkflowDto {
@@ -46,7 +46,17 @@ export class ProfileController {
   @Sse('parse-status/:taskId')
   parseStatus(@Param('taskId') taskId: string): Observable<MessageEvent> {
     this.logger.log(`[API] Client subscribing to SSE parse stream for taskId: ${taskId}`);
-    return this.profileService.getTaskEventStream(taskId).pipe(
+    
+    const heartbeats = interval(15000).pipe(
+      map(() => ({
+        data: {
+          status: 'ping',
+          log: 'ping',
+        }
+      } as MessageEvent))
+    );
+
+    const events = this.profileService.getTaskEventStream(taskId).pipe(
       filter(event => event.taskId === taskId),
       map(event => ({
         data: {
@@ -55,8 +65,10 @@ export class ProfileController {
           errorDetails: event.errorDetails,
           profile: event.profile,
         }
-      }))
+      } as MessageEvent))
     );
+
+    return merge(events, heartbeats);
   }
 
   @Get()
@@ -102,7 +114,6 @@ export class ProfileController {
       return { searchTerms: ['Software Engineer'] };
     }
     const searchTerms = await this.profileService.suggestJobTitles(profile);
-    const limitedTerms = searchTerms.slice(0, 1);
-    return { searchTerms: limitedTerms.length > 0 ? limitedTerms : ['Software Engineer'] };
+    return { searchTerms: searchTerms.length > 0 ? searchTerms : ['Software Engineer'] };
   }
 }

@@ -97,13 +97,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS projects TEXT[] DEFAULT '{}';
         ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS achievements TEXT[] DEFAULT '{}';
         ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS latest_run_id VARCHAR(255);
+        ALTER TABLE user_skills ALTER COLUMN skill TYPE VARCHAR(255);
       `);
 
       // 3. Create user skills table
       await client.query(`
         CREATE TABLE IF NOT EXISTS user_skills (
           user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-          skill VARCHAR(100) NOT NULL,
+          skill VARCHAR(255) NOT NULL,
           PRIMARY KEY (user_id, skill)
         );
       `);
@@ -123,6 +124,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           reasoning TEXT,
           status VARCHAR(50) DEFAULT 'matched',
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          confidence_score INTEGER,
+          confidence_factors JSONB,
           UNIQUE (user_id, job_id)
         );
       `);
@@ -135,6 +138,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       // Ensure run_id column exists
       await client.query(`
         ALTER TABLE results ADD COLUMN IF NOT EXISTS run_id VARCHAR(255);
+      `);
+
+      // Ensure confidence_score and confidence_factors columns exist
+      await client.query(`
+        ALTER TABLE results ADD COLUMN IF NOT EXISTS confidence_score INTEGER;
+      `);
+      await client.query(`
+        ALTER TABLE results ADD COLUMN IF NOT EXISTS confidence_factors JSONB;
       `);
 
       // 5. Create sequence for run IDs

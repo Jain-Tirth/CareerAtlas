@@ -29,45 +29,41 @@ export class LlmGatewayService implements OnModuleInit {
   private initializeFromEnv() {
     // 1. Load Openrouter (For resume parsing only)
     const openrouter = this.parseKeys(process.env.OPENROUTER_API_KEY);
-    if (openrouter) {
+    if (openrouter.length > 0) {
       openrouter.forEach((key, index) => {
         this.llmInstances++;
-        this.addProvider(`openrouter-key-${index + 1}`, `Open router key #${index + 1}`, 'openrouter', key, 1)
-      })
+        this.addProvider(`openrouter-key-${index + 1}`, `Open router key #${index + 1}`, 'openrouter', key, 1);
+      });
       this.isIntiliazedLlm = true;
     }
 
     // 2. Load Groq Keys
-    if (!this.isIntiliazedLlm) {
-      const groqKeys = this.parseKeys(process.env.GROQ_API_KEY);
+    const groqKeys = this.parseKeys(process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY);
+    if (groqKeys.length > 0) {
       groqKeys.forEach((key, index) => {
-        this.llmInstances += 1;
-        this.addProvider(`groq - key - ${index + 1} `, `Groq Cloud Key #${index + 1} `, 'groq', key, 2);
-      }
-      );
+        this.llmInstances++;
+        this.addProvider(`groq-key-${index + 1}`, `Groq Cloud Key #${index + 1}`, 'groq', key, 2);
+      });
+      this.isIntiliazedLlm = true;
     }
 
     // 3. Gemma model
-    else if (!this.isIntiliazedLlm) {
-      const geminiKeys = this.parseKeys(process.env.GEMINI_API_KEY)
-      if (geminiKeys) {
-        geminiKeys.forEach((key, index) => {
-          this.llmInstances++;
-          this.addProvider(`gemini-key-${index + 1} `, `Gemini Cloud Key #${index + 1} `, 'gemini', key, 3);
-        });
-        this.isIntiliazedLlm = true;
-      }
+    const geminiKeys = this.parseKeys(process.env.GEMINI_API_KEY);
+    if (geminiKeys.length > 0) {
+      geminiKeys.forEach((key, index) => {
+        this.llmInstances++;
+        this.addProvider(`gemini-key-${index + 1}`, `Gemini Cloud Key #${index + 1}`, 'gemini', key, 3);
+      });
+      this.isIntiliazedLlm = true;
     }
 
     // 4. Load OmniRoute
-    else {
-      const omnirouteKey = this.parseKeys(process.env.OMNIROUTE_API_KEY);
-      if (omnirouteKey) {
-        omnirouteKey.forEach((key, index) => {
-          this.llmInstances++;
-          this.addProvider(`omniroute-key-${index + 1}`, `OmniRoute Provider #${index + 1}`, 'omniroute', key, 4);
-        })
-      }
+    const omnirouteKeys = this.parseKeys(process.env.OMNIROUTE_API_KEY);
+    if (omnirouteKeys.length > 0) {
+      omnirouteKeys.forEach((key, index) => {
+        this.llmInstances++;
+        this.addProvider(`omniroute-key-${index + 1}`, `OmniRoute Provider #${index + 1}`, 'omniroute', key, 4);
+      });
       this.isIntiliazedLlm = true;
     }
   }
@@ -157,12 +153,14 @@ export class LlmGatewayService implements OnModuleInit {
    */
   async invokeLLM<T = any>(
     promptRunner: (model: BaseChatModel) => Promise<T>,
-    maxRetries = 2
+    maxRetries = 2,
+    options?: { purpose?: 'resume-parsing' | 'general' }
   ): Promise<T> {
     let attempts = 0;
+    const purpose = options?.purpose;
 
     while (attempts <= maxRetries) {
-      const provider = this.getBestProvider();
+      const provider = this.getBestProvider(purpose);
       if (!provider) {
         throw new Error(`[LLM-GATEWAY] No healthy LLM providers/keys are currently available for purpose: ${purpose}.`);
       }
@@ -198,37 +196,45 @@ export class LlmGatewayService implements OnModuleInit {
   private getBestProvider(purpose?: 'resume-parsing' | 'general'): LLMProvider | null {
     const now = Date.now();
     
-    // Filter providers based on purpose:
-    // Resume parsing uses openrouter only. Everywhere else uses gemini, groq, omniroute.
-    let filteredProviders = this.providers;
-    if (purpose === 'resume-parsing') {
-      filteredProviders = this.providers.filter(p => p.type === 'openrouter');
-    } else {
-      filteredProviders = this.providers.filter(
-        p => p.type === 'gemini' || p.type === 'groq' || p.type === 'omniroute'
-      );
+    // 1. Try to find a healthy OpenRouter provider first
+    const healthyOpenRouter = this.providers.filter(
+      p => p.type === 'openrouter' && p.cooldownUntil <= now
+    );
+    
+    if (healthyOpenRouter.length > 0) {
+      // Sort by load (fewer active requests first) and then total requests routed
+      return healthyOpenRouter.sort((a, b) => {
+        if (a.activeRequests !== b.activeRequests) {
+          return a.activeRequests - b.activeRequests;
+        }
+        return (a.totalRequestsRouted || 0) - (b.totalRequestsRouted || 0);
+      })[0];
     }
-
-    const healthy = filteredProviders.filter(p => p.cooldownUntil <= now);
-
-    if (healthy.length === 0) {
-      // Emergency: Return the key that will complete its cooldown earliest
-      if (filteredProviders.length > 0) {
-        return filteredProviders.reduce((earliest, p) => p.cooldownUntil < earliest.cooldownUntil ? p : earliest);
-      }
-      return null;
+    
+    // 2. If no healthy OpenRouter providers are available, fall back to healthy Groq, Gemini, or OmniRoute
+    const healthyFallback = this.providers.filter(
+      p => (p.type === 'groq' || p.type === 'gemini' || p.type === 'omniroute') && p.cooldownUntil <= now
+    );
+    
+    if (healthyFallback.length > 0) {
+      // Sort by: 1. Priority (lower value first) -> 2. Load -> 3. Total requests routed
+      return healthyFallback.sort((a, b) => {
+        if (a.priority !== b.priority) {
+          return a.priority - b.priority;
+        }
+        if (a.activeRequests !== b.activeRequests) {
+          return a.activeRequests - b.activeRequests;
+        }
+        return (a.totalRequestsRouted || 0) - (b.totalRequestsRouted || 0);
+      })[0];
     }
-
-    // Sort by: 1. Priority (lower value first) -> 2. Load (fewer active requests first) -> 3. Total requests routed (fewer first)
-    return healthy.sort((a, b) => {
-      if (a.priority !== b.priority) {
-        return a.priority - b.priority;
-      }
-      if (a.activeRequests !== b.activeRequests) {
-        return a.activeRequests - b.activeRequests;
-      }
-      return (a.totalRequestsRouted || 0) - (b.totalRequestsRouted || 0);
-    })[0];
+    
+    // 3. Emergency fallback: if all providers are cooling down, return the one that will finish earliest
+    if (this.providers.length > 0) {
+      return this.providers.reduce((earliest, p) => p.cooldownUntil < earliest.cooldownUntil ? p : earliest);
+    }
+    
+    return null;
   }
 
   getLlmInstancesCount(): number {

@@ -14,6 +14,9 @@ export interface JobRequirements {
   employmentType: string;
   remoteAllowed: boolean;
   location: string;
+  extractionStatus?: 'SUCCESS' | 'FAILED' | 'FALLBACK';
+  extractionVersion?: number;
+  lastExtractedAt?: string;
 }
 
 @Injectable()
@@ -325,6 +328,9 @@ Do not include any conversational filler, explanation, or markdown formatting (s
           }
           return rawLoc ? rawLoc : (llmLoc ? llmLoc : 'Remote');
         })(),
+        extractionStatus: 'SUCCESS',
+        extractionVersion: 2,
+        lastExtractedAt: new Date().toISOString(),
       };
 
       return reqs;
@@ -347,6 +353,9 @@ Do not include any conversational filler, explanation, or markdown formatting (s
           const isQuery = rawLoc.includes(' OR ') || rawLoc.includes('(') || rawLoc.includes(')');
           return isQuery ? 'Remote' : (rawLoc || 'Remote');
         })(),
+        extractionStatus: 'FALLBACK',
+        extractionVersion: 2,
+        lastExtractedAt: new Date().toISOString(),
       };
 
       return fallbackReqs;
@@ -388,6 +397,11 @@ Do not include any conversational filler, explanation, or markdown formatting (s
       const payload = res[0].payload as any;
       if (!payload) return null;
 
+      // Only treat as cache hit if it was successfully extracted
+      if (payload.extractionStatus !== 'SUCCESS') {
+        return null;
+      }
+
       return {
         requiredSkills: payload.requiredSkills || [],
         preferredSkills: payload.preferredSkills || [],
@@ -396,6 +410,9 @@ Do not include any conversational filler, explanation, or markdown formatting (s
         employmentType: payload.employmentType || 'Full-time',
         remoteAllowed: !!payload.remoteAllowed,
         location: payload.location || 'Remote',
+        extractionStatus: payload.extractionStatus,
+        extractionVersion: payload.extractionVersion || 1,
+        lastExtractedAt: payload.lastExtractedAt || new Date().toISOString(),
       };
     } catch (err) {
       this.logger.error(`[JOB-INTEL] Qdrant error checking cached requirements: ${err.message}`);
@@ -426,6 +443,9 @@ Do not include any conversational filler, explanation, or markdown formatting (s
               educationRequirements: reqs.educationRequirements,
               employmentType: reqs.employmentType,
               remoteAllowed: reqs.remoteAllowed,
+              extractionStatus: reqs.extractionStatus || 'SUCCESS',
+              extractionVersion: reqs.extractionVersion || 2,
+              lastExtractedAt: reqs.lastExtractedAt || new Date().toISOString(),
             }
           }
         ]

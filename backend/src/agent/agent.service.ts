@@ -182,7 +182,8 @@ export class AgentService implements OnApplicationBootstrap {
       }
 
       const resultsRes = await this.db.query(`
-        SELECT id, job_id as "jobId", company, title, location, source, url, score, reasoning, status, created_at as "createdAt"
+        SELECT id, job_id as "jobId", company, title, location, source, url, score, reasoning, status, created_at as "createdAt",
+               confidence_score as "confidenceScore", confidence_factors as "confidenceFactors"
         FROM results
         WHERE user_id = $1 AND run_id = $2
         ORDER BY score DESC, created_at DESC
