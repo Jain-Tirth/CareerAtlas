@@ -93,7 +93,6 @@ export class AgentService implements OnApplicationBootstrap {
         resolvedUserId = userRes.rows[0].id;
         this.activeUserId = resolvedUserId;
 
-
         // Load, update profile, and regenerate Qdrant vector embeddings to reflect updated search parameters
         const profile = await this.profileService.getProfileById(resolvedUserId);
         if (profile) {

@@ -12,7 +12,6 @@ import { ValidationModule } from '../validation/validation.module';
 import { IntelligenceModule } from '../intelligence/intelligence.module';
 import { EmbeddingsModule } from '../embeddings/embeddings.module';
 import { MemoryModule } from '../memory/memory.module';
-import { NotifierModule } from '../notifier/notifier.module';
 import { ProfileModule } from '../profile/profile.module';
 import { MatchingModule } from '../matching/matching.module';
 
@@ -98,7 +97,6 @@ import { MatchingModule } from '../matching/matching.module';
     IntelligenceModule,
     EmbeddingsModule,
     MemoryModule,
-    NotifierModule,
     ProfileModule,
     MatchingModule,
   ],

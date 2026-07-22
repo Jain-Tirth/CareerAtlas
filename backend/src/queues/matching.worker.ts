@@ -3,7 +3,6 @@ import { Queue, Job as BullJob } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { MatchingService } from '../matching/matching.service';
 import { ProfileService } from '../profile/profile.service';
-import { NotifierService } from '../notifier/notifier.service';
 import { PipelineCoordinatorService } from './pipeline-coordinator.service';
 import { DatabaseService } from '../vector-store/database.service';
 
@@ -27,7 +26,6 @@ export class MatchingWorker extends WorkerHost {
   constructor(
     private readonly matchingService: MatchingService,
     private readonly profileService: ProfileService,
-    private readonly notifierService: NotifierService,
     private readonly coordinator: PipelineCoordinatorService,
     private readonly db: DatabaseService,
     @InjectQueue('job-discovery') private readonly discoveryQueue: Queue,

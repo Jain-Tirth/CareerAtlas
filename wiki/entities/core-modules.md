@@ -27,7 +27,6 @@ The CareerAtlas backend is built as a highly decoupled, queue-driven NestJS arch
 | **MatchingWorker** | Pulls from `job-matching`, checks requirements, rates matches, and triggers notifications. | `process()` |
 | **MatchingService** | Scores candidate jobs using a flattened $O(1)$ constant-time `SKILL_INDEX` taxonomy, generates personal LLM match rationales, and alerts. | `matchAndRankJobs()`, `scoreJob()` |
 | **MemoryService** | Deduplicates jobs using SHA-256 hashes stored in Redis sets with 24-hour expiration TTLs. | `isJobMatched()`, `isJobProcessed()`, `markJobAsMatched()`, `markJobAsProcessed()`, `generateJobHash()` |
-| **NotifierService** | Sends Telegram alerts for high-value job matches. | `sendJobAlert()` |
 
 ## Pipeline Dependency Flow
 

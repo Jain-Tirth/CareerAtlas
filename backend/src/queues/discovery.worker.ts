@@ -61,12 +61,25 @@ export class DiscoveryWorker extends WorkerHost {
     }
 
     try {
-      // Run discovery agents in parallel
+      // Helper to prevent any single scraper agent from hanging the discovery pipeline
+      const withTimeout = async <T>(agentPromise: Promise<T>, agentName: string, timeoutMs = 15000, fallback: T): Promise<T> => {
+        return Promise.race([
+          agentPromise,
+          new Promise<T>((resolve) => {
+            setTimeout(() => {
+              this.logger.warn(`[DISCOVERY-WORKER] Agent ${agentName} timed out after ${timeoutMs}ms. Continuing with remaining agents.`);
+              resolve(fallback);
+            }, timeoutMs);
+          }),
+        ]);
+      };
+
+      // Run discovery agents in parallel with 15-second individual safeguards
       const [atsJobs, startupJobs, indiaJobs, linkedinJobs] = await Promise.all([
-        this.atsPortalsAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears),
-        this.startupBoardsAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears),
-        this.indiaFocusedAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears),
-        this.linkedinAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears),
+        withTimeout(this.atsPortalsAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears), 'ATS_PORTALS', 15000, []),
+        withTimeout(this.startupBoardsAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears), 'STARTUP_BOARDS', 15000, []),
+        withTimeout(this.indiaFocusedAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears), 'INDIA_FOCUSED', 15000, []),
+        withTimeout(this.linkedinAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears), 'LINKEDIN', 15000, []),
       ]);
 
       const rawScrapedJobs = [...atsJobs, ...startupJobs, ...indiaJobs, ...linkedinJobs];

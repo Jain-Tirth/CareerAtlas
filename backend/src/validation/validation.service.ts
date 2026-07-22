@@ -1,9 +1,7 @@
   import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
   import { DatabaseService } from '../vector-store/database.service';
-  import { MemoryService } from '../memory/memory.service';
   import { Job } from '../discovery/discovery.service';
   import { QdrantService } from '../vector-store/qdrant.service';
-  import { detectFamily, detectSubfamily } from '../matching/roleTaxonomy';
   import { EmbeddingsService } from '../embeddings/embeddings.service';
   
   @Injectable()
@@ -24,7 +22,6 @@
 
     constructor(
       private readonly db: DatabaseService,
-      private readonly memoryService: MemoryService,
       private readonly qdrantService: QdrantService,
       private readonly embeddingsService: EmbeddingsService,
     ) { }
@@ -84,7 +81,7 @@
           return { valid: false, reason: 'Broken Link' };
         }
 
-        // 6. Check if job already has vector embeddings in Qdrant
+        // 4. Check if job already has vector embeddings in Qdrant
         const inQdrant = await this.isJobInQdrant(job.jobId);
 
         return { valid: true, bypassed: inQdrant };
@@ -93,140 +90,6 @@
         return { valid: false, reason: `Error: ${err.message}` };
       }
     }
-
-    private readonly locationSynonyms: { [key: string]: string } = {
-      'bangalore': 'bengaluru',
-      'banglore': 'bengaluru',
-      'bangalore urban': 'bengaluru',
-      'bengaluru': 'bengaluru',
-      'mumbai': 'mumbai',
-      'bombay': 'mumbai',
-      'new york': 'new york',
-      'new york city': 'new york',
-      'nyc': 'new york',
-      'ny': 'new york',
-      'san francisco': 'san francisco',
-      'sf': 'san francisco',
-      'bay area': 'san francisco'
-    };
-
-    private cosineSimilarity(vecA: number[], vecB: number[]): number {
-      let dotProduct = 0.0;
-      let normA = 0.0;
-      let normB = 0.0;
-      for (let i = 0; i < vecA.length; i++) {
-        dotProduct += vecA[i] * vecB[i];
-        normA += vecA[i] * vecA[i];
-        normB += vecB[i] * vecB[i];
-      }
-      if (normA === 0 || normB === 0) return 0;
-      return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-    }
-
-    private async isSemanticTitleMatch(jobTitle: string, searchTerm: string): Promise<boolean> {
-      try {
-        const vecA = await this.embeddingsService.generateEmbedding(jobTitle.toLowerCase());
-        const vecB = await this.embeddingsService.generateEmbedding(searchTerm.toLowerCase());
-        const similarity = this.cosineSimilarity(vecA, vecB);
-        this.logger.log(`[VALIDATION] Semantic title similarity between "${jobTitle}" and "${searchTerm}": ${similarity.toFixed(3)}`);
-        return similarity >= 0.62;
-      } catch (err) {
-        this.logger.error(`[VALIDATION] Error calculating semantic title match: ${err.message}`);
-        return true; // Fallback to passing if comparison fails
-      }
-    }
-
-    private async isJobRelevant(jobTitle: string, searchTerm: string): Promise<boolean> {
-      const titleLower = jobTitle.toLowerCase();
-      const searchJobLower = searchTerm.toLowerCase();
-
-      // Check negations first
-      const irrelevantKeywords = ['sales', 'marketing', 'recruiter', 'hr', 'accountant', 'ticketing', 'travel', 'admin', 'writer', 'seo'];
-      const hasNegative = irrelevantKeywords.some(neg => {
-        return titleLower.includes(neg) && !searchJobLower.includes(neg);
-      });
-      if (hasNegative) {
-        this.logger.log(`[VALIDATION] Title "${jobTitle}" rejected due to non-technical keyword`);
-        return false;
-      }
-
-      const titleFamily = detectFamily(titleLower);
-      const searchJobFamily = detectFamily(searchJobLower);
-
-      // Add software engineering (family 'software') as generic opening
-      if (titleFamily === 'software') {
-        return true;
-      }
-
-      // If families match, it's relevant
-      if (titleFamily === searchJobFamily && titleFamily !== null) {
-        return true;
-      }
-
-      // If one of them is null, we can do a simple substring comparison fallback to be safe
-      if (titleFamily === null || searchJobFamily === null) {
-        // If search term is a substring of the title, let it pass
-        if (titleLower.includes(searchJobLower) || searchJobLower.includes(titleLower)) {
-          return true;
-        }
-      }
-
-      // Semantic title similarity fallback check
-      const semanticMatch = await this.isSemanticTitleMatch(jobTitle, searchTerm);
-      if (semanticMatch) {
-        return true;
-      }
-
-      this.logger.log(`[VALIDATION] Title "${jobTitle}" rejected due to family mismatch and low semantic similarity with search term: "${searchTerm}"`);
-      return false;
-    }
-   
-    private normalizeLocation(loc: string): string {
-      let l = loc.toLowerCase().trim();
-      l = l.replace(/[^a-z0-9\s]/g, '');
-
-      for (const [key, normalized] of Object.entries(this.locationSynonyms)) {
-        if (l === key || l.includes(key)) {
-          return normalized;
-        }
-      }
-      return l;
-    }
-
-    private isLocationRelevant(jobLocation: string, profile: any): boolean {
-      if (!profile || !profile.preferences) {
-        return true;
-      }
-
-      const locations = profile.preferences.locations || [];
-      const isRemoteOpen = profile.preferences.remote ?? true;
-
-      const jobLocLower = jobLocation.toLowerCase();
-
-      // If the job is remote, and the candidate is open to remote, it's valid
-      const isJobRemote = jobLocLower.includes('remote');
-      if (isJobRemote && isRemoteOpen) {
-        return true;
-      }
-
-      if (locations.length > 0) {
-        const normJobLoc = this.normalizeLocation(jobLocation);
-        const hasMatch = locations.some(loc => {
-          const normPrefLoc = this.normalizeLocation(loc);
-          return normJobLoc.includes(normPrefLoc) || normPrefLoc.includes(normJobLoc);
-        });
-        if (hasMatch) {
-          return true;
-        }
-      }
-
-      if (locations.length === 0 && isRemoteOpen) {
-        return true;
-      }
-
-      return false;
-    }
-
 
     private async isExpired(job: Job): Promise<boolean> {
       // JDs with clear "expired/closed" language in body

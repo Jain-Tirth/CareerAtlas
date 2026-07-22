@@ -65,6 +65,7 @@ export class IndiaFocusedAgent {
       let response = await fetch(searchUrl, {
         method: 'GET',
         headers: { 'X-API-Key': this.apiKey },
+        signal: AbortSignal.timeout(8000),
       });
 
       if (!response.ok) {
@@ -83,6 +84,7 @@ export class IndiaFocusedAgent {
         response = await fetch(searchUrl, {
           method: 'GET',
           headers: { 'X-API-Key': this.apiKey },
+          signal: AbortSignal.timeout(8000),
         });
         if (response.ok) {
           data = await response.json();
@@ -99,6 +101,7 @@ export class IndiaFocusedAgent {
         response = await fetch(searchUrl, {
           method: 'GET',
           headers: { 'X-API-Key': this.apiKey },
+          signal: AbortSignal.timeout(8000),
         });
         if (response.ok) {
           data = await response.json();

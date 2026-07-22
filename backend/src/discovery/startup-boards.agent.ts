@@ -81,6 +81,7 @@ export class StartupBoardsAgent {
         headers: {
           'X-API-Key': this.apiKey,
         },
+        signal: AbortSignal.timeout(8000),
       });
 
       if (!response.ok) {
@@ -99,6 +100,7 @@ export class StartupBoardsAgent {
         response = await fetch(fallbackUrl, {
           method: 'GET',
           headers: { 'X-API-Key': this.apiKey },
+          signal: AbortSignal.timeout(8000),
         });
         if (response.ok) {
           data = await response.json();

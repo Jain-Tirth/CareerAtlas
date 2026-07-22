@@ -29,12 +29,10 @@ import {
   DEFAULT_MATCHING_CONFIG,
   MatchingConfig,
 } from './constants';
-import {
-  TechnicalCompetenceAnalyzer,
-  ExperienceSeniorityAnalyzer,
-  SemanticAnalyzer,
-  LogisticsAnalyzer,
-} from './analyzers';
+import { TechnicalCompetenceAnalyzer } from "./analyzers/technical.analyzer";
+import { ExperienceSeniorityAnalyzer } from "./analyzers/experience.analyzer";
+import { SemanticAnalyzer } from "./analyzers/semantic.analyzer";
+import { LogisticsAnalyzer } from "./analyzers/logistics.analyzer";
 
 export { MATCHING_PENALTIES, DEFAULT_MATCHING_CONFIG };
 export type {
@@ -165,7 +163,7 @@ export class MatchingService {
   async matchAndRankJobs(userId: number, limit = 20): Promise<RankedJob[]> {
     this.clearDetailedMatchLog();
     this.logger.log(`[MATCHING] Running semantic recommendation matching for user ID: ${userId}...`);
-    
+
     // 1. Fetch User Profile from database
     const profile = await this.getUserProfile(userId);
     if (!profile) {
@@ -233,7 +231,7 @@ export class MatchingService {
           similarity: point.score,
         });
       }
-    } catch (qdrantErr : any) {
+    } catch (qdrantErr: any) {
       this.logger.error(`[MATCHING] Qdrant search failed: ${qdrantErr.message}`);
       return [];
     }
@@ -287,7 +285,7 @@ ${this.stats.solelyExperienceReject}
 `);
 
     this.logger.log(`[MATCHING] Hard Filter Engine: Approved ${filteredJobs.length} / ${jobsWithReqs.length} jobs.`);
-    
+
     if (filteredJobs.length === 0) return [];
 
     // 5. Compute scores and perform Hard Rejection & Priority-Weighted Ranking
@@ -729,7 +727,7 @@ ${this.stats.solelyExperienceReject}
       }
     }
     const normalizedCandidate = individualCandidateSkills.map(s => this.normalizeSkillName(s));
-    
+
     let totalMatchValue = 0;
     let totalConfidenceValue = 0;
     const matched: string[] = [];
@@ -901,13 +899,13 @@ ${this.stats.solelyExperienceReject}
 
     if (isJobRemote && isCandidateOpenToRemote) {
       // Check for country alignment
-      const isCandidateInIndia = candidateLocations.some(loc => 
+      const isCandidateInIndia = candidateLocations.some(loc =>
         loc.includes('india') || loc.includes('bangalore') || loc.includes('bengaluru') || loc.includes('ahmedabad') || loc.includes('noida') || loc.includes('delhi') || loc.includes('mumbai') || loc.includes('pune')
       );
-      const isCandidateInCanada = candidateLocations.some(loc => 
+      const isCandidateInCanada = candidateLocations.some(loc =>
         loc.includes('canada') || loc.includes('ontario') || loc.includes('toronto') || loc.includes('vancouver') || loc.includes('bc') || loc.includes('alberta')
       );
-      const isCandidateInUS = candidateLocations.some(loc => 
+      const isCandidateInUS = candidateLocations.some(loc =>
         loc.includes('usa') || loc.includes('united states') || loc.includes('california') || loc.includes('new york') || loc.includes('texas') || loc.includes('sf') || loc.includes('chicago')
       );
 
@@ -976,7 +974,7 @@ ${this.stats.solelyExperienceReject}
     // 1. Seniority & Experience Filter
     let minYearsRequired = reqs.experienceRequired || 0;
     let maxYearsRequired = 100;
-    
+
     const textToScan = titleLower + ' ' + descLower;
 
     if (
@@ -1034,7 +1032,7 @@ ${this.stats.solelyExperienceReject}
       .map(loc => loc.trim().toLowerCase())
       .filter(Boolean);
     const isCandidateOpenToRemote = !!profile.preferences.remote;
-    
+
     const jobLocLower = (reqs.location || '').toLowerCase();
     const isJobRemote = !!reqs.remoteAllowed || jobLocLower.includes('remote') || descLower.includes('remote');
 
@@ -1068,13 +1066,13 @@ ${this.stats.solelyExperienceReject}
 
       if (!hasPhysicalMatch) {
         if (isJobRemote && isCandidateOpenToRemote) {
-          const isCandidateInIndia = candidateLocations.some(loc => 
+          const isCandidateInIndia = candidateLocations.some(loc =>
             loc.includes('india') || loc.includes('bangalore') || loc.includes('bengaluru') || loc.includes('ahmedabad') || loc.includes('noida') || loc.includes('delhi') || loc.includes('mumbai') || loc.includes('pune')
           );
-          const isCandidateInCanada = candidateLocations.some(loc => 
+          const isCandidateInCanada = candidateLocations.some(loc =>
             loc.includes('canada') || loc.includes('ontario') || loc.includes('toronto') || loc.includes('vancouver') || loc.includes('bc') || loc.includes('alberta')
           );
-          const isCandidateInUS = candidateLocations.some(loc => 
+          const isCandidateInUS = candidateLocations.some(loc =>
             loc.includes('usa') || loc.includes('united states') || loc.includes('california') || loc.includes('new york') || loc.includes('texas') || loc.includes('sf') || loc.includes('chicago')
           );
 
@@ -1111,7 +1109,7 @@ ${this.stats.solelyExperienceReject}
     let employmentPass = true;
     if (profile.preferences.employmentTypes && profile.preferences.employmentTypes.length > 0) {
       const jobEmpLower = reqs.employmentType.toLowerCase();
-      employmentPass = profile.preferences.employmentTypes.some(type => 
+      employmentPass = profile.preferences.employmentTypes.some(type =>
         jobEmpLower.includes(type.toLowerCase()) || type.toLowerCase().includes(jobEmpLower)
       );
     }
@@ -1170,7 +1168,7 @@ ${this.stats.solelyExperienceReject}
 
       const prefRes = await this.db.query('SELECT * FROM user_preferences WHERE user_id = $1', [userId]);
       const skillsRes = await this.db.query('SELECT skill FROM user_skills WHERE user_id = $1', [userId]);
-      
+
       const user = userRes.rows[0];
       const pref = prefRes.rows[0];
       const skills = skillsRes.rows.map(r => r.skill);

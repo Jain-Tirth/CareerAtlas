@@ -51,7 +51,7 @@ export class ExecutionLogger extends ConsoleLogger {
     if (runIdMatch) {
       if (runIdMatch[0] !== ExecutionLogger.activeRunId) {
         ExecutionLogger.activeRunId = runIdMatch[0];
-        ExecutionLogger.clearCombinedLog();
+        // ExecutionLogger.clearCombinedLog();
       }
     }
 

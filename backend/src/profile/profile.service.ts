@@ -111,11 +111,9 @@ export class ProfileService {
     return null;
   }
 
-
   async invokeModel(promptText: string): Promise<string> {
     return this.invokeModelWithFallback(promptText, 'general');
   }
-
 
   private async invokeModelWithFallback(promptText: string, purpose?: 'resume-parsing' | 'general'): Promise<string> {
     try {
