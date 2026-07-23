@@ -1,6 +1,12 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { Camoufox } from 'camoufox';
 
+export interface ScrapedJobDetails {
+  description: string | null;
+  title: string | null;
+  company: string | null;
+}
+
 @Injectable()
 export class CamoufoxScraperService implements OnModuleDestroy {
   private readonly logger = new Logger(CamoufoxScraperService.name);
@@ -28,7 +34,7 @@ export class CamoufoxScraperService implements OnModuleDestroy {
     return this.browser;
   }
 
-  async scrapeUrl(url: string): Promise<string | null> {
+  async scrapeUrl(url: string): Promise<ScrapedJobDetails | null> {
     this.logger.log(`[CAMOUFOX] Scraping URL using shared browser: ${url}`);
     let context: any = null;
     let page: any = null;
@@ -50,6 +56,10 @@ export class CamoufoxScraperService implements OnModuleDestroy {
         return null;
       }
 
+      // Try to extract title and company from JSON-LD or meta tags
+      let extractedTitle: string | null = null;
+      let extractedCompany: string | null = null;
+
       // 1. Try to extract from application/ld+json script tags first (highly robust for job postings)
       let jsonLdDesc = '';
       try {
@@ -63,6 +73,18 @@ export class CamoufoxScraperService implements OnModuleDestroy {
               const rawHtml = data.description || '';
               // Remove HTML tags since we want plain text description
               jsonLdDesc = rawHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+              if (data.title) {
+                extractedTitle = data.title;
+              }
+              if (data.hiringOrganization) {
+                if (typeof data.hiringOrganization === 'string') {
+                  extractedCompany = data.hiringOrganization;
+                } else if (data.hiringOrganization.name) {
+                  extractedCompany = data.hiringOrganization.name;
+                } else if (data.hiringOrganization.legalName) {
+                  extractedCompany = data.hiringOrganization.legalName;
+                }
+              }
               if (jsonLdDesc.length > 200) {
                 this.logger.log(`[CAMOUFOX] Successfully extracted ${jsonLdDesc.length} characters from JSON-LD schema.`);
                 break;
@@ -74,8 +96,31 @@ export class CamoufoxScraperService implements OnModuleDestroy {
         this.logger.warn(`[CAMOUFOX] Failed to parse JSON-LD schema: ${jsonLdErr.message}`);
       }
 
+      // If missing, fall back to meta/title tags
+      if (!extractedTitle) {
+        extractedTitle = await page.title().catch(() => '');
+      }
+
+      try {
+        const ogTitle = await page.$eval('meta[property="og:title"]', el => el.content).catch(() => '');
+        const ogSiteName = await page.$eval('meta[property="og:site_name"]', el => el.content).catch(() => '');
+        
+        if (!extractedTitle && ogTitle) {
+          extractedTitle = ogTitle;
+        }
+        if (!extractedCompany && ogSiteName) {
+          extractedCompany = ogSiteName;
+        }
+      } catch (metaErr) {
+        // ignore
+      }
+
       if (jsonLdDesc && jsonLdDesc.length > 200) {
-        return jsonLdDesc;
+        return {
+          description: jsonLdDesc,
+          title: extractedTitle ? String(extractedTitle).trim() : null,
+          company: extractedCompany ? String(extractedCompany).trim() : null,
+        };
       }
 
       // Handle common job platforms specific behaviors (like clicking "Show More" buttons)
@@ -115,7 +160,11 @@ export class CamoufoxScraperService implements OnModuleDestroy {
 
       if (scrapedText.length > 200) {
         this.logger.log(`[CAMOUFOX] Successfully scraped ${scrapedText.length} characters.`);
-        return scrapedText;
+        return {
+          description: scrapedText,
+          title: extractedTitle ? String(extractedTitle).trim() : null,
+          company: extractedCompany ? String(extractedCompany).trim() : null,
+        };
       }
       return null;
     } catch (err) {

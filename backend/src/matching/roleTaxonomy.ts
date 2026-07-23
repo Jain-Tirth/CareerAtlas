@@ -449,3 +449,41 @@ export function calculateSubfamilySimilarity(
 
   return 0.3;
 }
+
+export type TransferabilityTier = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export const SUBFAMILY_TRANSFERABILITY: Record<string, Record<string, TransferabilityTier>> = {
+  react: { vue: 'HIGH', angular: 'MEDIUM' },
+  vue: { react: 'HIGH', angular: 'MEDIUM' },
+  angular: { react: 'MEDIUM', vue: 'MEDIUM' },
+
+  node: { java: 'MEDIUM', python: 'HIGH', golang: 'MEDIUM' },
+  python: { node: 'HIGH', java: 'MEDIUM', golang: 'MEDIUM' },
+  java: { dotnet: 'HIGH', node: 'MEDIUM', python: 'MEDIUM' },
+  dotnet: { java: 'HIGH', node: 'MEDIUM', python: 'MEDIUM' },
+  golang: { node: 'MEDIUM', python: 'MEDIUM' },
+
+  machine_learning: { data_science: 'HIGH', data_engineering: 'MEDIUM' },
+  data_science: { machine_learning: 'HIGH', data_engineering: 'MEDIUM' },
+  data_engineering: { data_science: 'MEDIUM', machine_learning: 'MEDIUM' },
+
+  android: { cross_platform: 'HIGH', ios: 'MEDIUM' },
+  ios: { cross_platform: 'HIGH', android: 'MEDIUM' },
+  cross_platform: { android: 'HIGH', ios: 'HIGH' },
+
+  cloud: { infrastructure: 'HIGH' },
+  infrastructure: { cloud: 'HIGH' }
+};
+
+export function getTransferableFactor(subA: string | null, subB: string | null): TransferabilityTier | null {
+  if (!subA || !subB) return null;
+  if (subA === subB) return 'HIGH';
+  
+  if (SUBFAMILY_TRANSFERABILITY[subA] && SUBFAMILY_TRANSFERABILITY[subA][subB]) {
+    return SUBFAMILY_TRANSFERABILITY[subA][subB];
+  }
+  if (SUBFAMILY_TRANSFERABILITY[subB] && SUBFAMILY_TRANSFERABILITY[subB][subA]) {
+    return SUBFAMILY_TRANSFERABILITY[subB][subA];
+  }
+  return null;
+}

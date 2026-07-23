@@ -53,9 +53,7 @@ export class PipelineCoordinatorService {
     logs: [],
   };
 
-  /**
-   * Starts a new pipeline run.
-   */
+  /* Starts a new pipeline run.*/
   async startRun(
     runId: string,
     userId: number,
@@ -101,9 +99,7 @@ export class PipelineCoordinatorService {
     return run;
   }
 
-  /**
-   * Retrieves a run by its ID.
-   */
+  /* Retrieves a run by its ID.*/
   async getRun(runId: string): Promise<PipelineRun | undefined> {
     if (this.redis) {
       try {
@@ -118,9 +114,7 @@ export class PipelineCoordinatorService {
     return this.runs.get(runId);
   }
 
-  /**
-   * Retrieves the current active run status, or the default idle status.
-   */
+  /* Retrieves the current active run status, or the default idle status.*/
   async getActiveRunStatus(): Promise<PipelineStatus> {
     let runId: string | null = this.activeRunId;
     if (this.redis) {
@@ -143,9 +137,7 @@ export class PipelineCoordinatorService {
     return this.defaultStatus;
   }
 
-  /**
-   * Updates the status of a specific step in a run.
-   */
+  /* Updates the status of a specific step in a run.*/
   async updateStep(runId: string, stepId: string, status: 'idle' | 'running' | 'success' | 'error', errorDetails = '') {
     const run = await this.getRun(runId);
     if (run && run.status.steps[stepId]) {
@@ -163,9 +155,7 @@ export class PipelineCoordinatorService {
     }
   }
 
-  /**
-   * Adds a timestamped log message to the run.
-   */
+  /* Adds a timestamped log message to the run.*/
   async addLog(runId: string, message: string) {
     const run = await this.getRun(runId);
     if (run) {
@@ -183,9 +173,7 @@ export class PipelineCoordinatorService {
     }
   }
 
-  /**
-   * Sets the total number of child jobs for the current cycle.
-   */
+  /* Sets the total number of child jobs for the current cycle.*/
   async setTotalJobs(runId: string, total: number) {
     if (this.redis) {
       try {
@@ -210,10 +198,8 @@ export class PipelineCoordinatorService {
     }
   }
 
-  /**
-   * Decrements the remaining jobs counter.
-   * Returns true if all jobs in the current batch have finished processing.
-   */
+  /* Decrements the remaining jobs counter.
+   Returns true if all jobs in the current batch have finished processing.*/
   async decrementRemainingJobs(runId: string): Promise<boolean> {
     let processed = 0;
     if (this.redis) {
@@ -255,9 +241,7 @@ export class PipelineCoordinatorService {
     return false;
   }
 
-  /**
-   * Marks a run as completed.
-   */
+  /*Marks a run as completed.*/
   async completeRun(runId: string, message = 'Workflow completed.') {
     const run = await this.getRun(runId);
     if (run) {
@@ -289,9 +273,7 @@ export class PipelineCoordinatorService {
     }
   }
 
-  /**
-   * Marks a run as failed.
-   */
+  /*Marks a run as failed.*/
   async failRun(runId: string, errorMsg: string) {
     const run = await this.getRun(runId);
     if (run) {

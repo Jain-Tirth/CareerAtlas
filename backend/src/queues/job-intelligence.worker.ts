@@ -1,9 +1,10 @@
 import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
 import { Queue, Job as BullJob } from 'bullmq';
-import { Logger } from '@nestjs/common';
+import { Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { JobIntelligenceService } from '../intelligence/job-intelligence.service';
 import { PipelineCoordinatorService } from './pipeline-coordinator.service';
 import { Job } from '../discovery/discovery.service';
+import { LlmGatewayService } from '../llm-gateway/llm-gateway.service';
 
 interface IntelligenceJobPayload {
   runId: string;
@@ -23,7 +24,7 @@ interface IntelligenceJobPayload {
 }
 
 @Processor('job-intelligence', { concurrency: 3 }) // Balanced concurrency for LLM API keys
-export class IntelligenceWorker extends WorkerHost {
+export class IntelligenceWorker extends WorkerHost implements OnApplicationBootstrap {
   private readonly logger = new Logger(IntelligenceWorker.name);
 
   constructor(
@@ -31,8 +32,19 @@ export class IntelligenceWorker extends WorkerHost {
     private readonly coordinator: PipelineCoordinatorService,
     @InjectQueue('job-embedding') private readonly embeddingQueue: Queue,
     @InjectQueue('job-matching') private readonly matchingQueue: Queue,
+    private readonly llmGatewayService: LlmGatewayService,
   ) {
     super();
+  }
+
+  onApplicationBootstrap() {
+    const count = this.llmGatewayService.getLlmInstancesCount();
+    if (count > 0) {
+      this.worker.concurrency = count;
+      this.logger.log(`[INTELLIGENCE-WORKER] Dynamically set concurrency to ${count} based on active LLM instances`);
+    } else {
+      this.logger.warn(`[INTELLIGENCE-WORKER] No active LLM instances found in LlmGatewayService, keeping default concurrency of 3`);
+    }
   }
 
   async process(bullJob: BullJob<IntelligenceJobPayload>): Promise<any> {

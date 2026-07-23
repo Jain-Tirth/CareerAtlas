@@ -13,9 +13,9 @@ export class EmbeddingsService implements OnModuleInit {
         model: EmbeddingModel.BGESmallENV15
       });
       this.logger.log('[EMBEDDINGS] fastembed model loaded successfully.');
-    } catch (err) {
+    } catch (err: any) {
       this.logger.warn(
-        `[EMBEDDINGS] Failed to load fastembed model: ${err.message}. Will use fallback API if available.`
+        `[EMBEDDINGS] Failed to load fastembed model: ${err.message}. Using deterministic vector fallback.`
       );
     }
   }
@@ -28,55 +28,31 @@ export class EmbeddingsService implements OnModuleInit {
       return new Array(384).fill(0);
     }
 
-    // Attempt fastembed inference first
     if (this.extractor) {
       try {
         const embeddings = this.extractor.embed([text]);
         for await (const batch of embeddings) {
           if (batch && batch.length > 0) {
-            return Array.from(batch[0]);
+            return Array.from(batch[0]) as number[];
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         this.logger.error(`[EMBEDDINGS] fastembed embedding generation failed: ${err.message}`);
       }
     }
 
-    // Fallback: Simple deterministic semantic hashing if all else fails (to prevent pipeline crash)
-    this.logger.warn('[EMBEDDINGS] Using mock/fallback deterministic hash embedding.');
-    return this.generateMockEmbedding(text, 384);
+    this.logger.warn(`[EMBEDDINGS] Fastembed unavailable or failed. Generating deterministic 384-dim vector.`);
+    return this.generateDeterministicVector(text, 384);
   }
 
-  private adjustDimensions(vector: number[], targetDim: number): number[] {
-    if (vector.length === targetDim) {
-      return vector;
-    }
-    if (vector.length > targetDim) {
-      // Truncate and renormalize
-      const truncated = vector.slice(0, targetDim);
-      const magnitude = Math.sqrt(truncated.reduce((sum, val) => sum + val * val, 0));
-      return truncated.map(val => (magnitude > 0 ? val / magnitude : 0));
-    }
-    // Pad with zeros
-    const padded = [...vector];
-    while (padded.length < targetDim) {
-      padded.push(0);
-    }
-    return padded;
-  }
-
-  private generateMockEmbedding(text: string, dimensions: number): number[] {
+  private generateDeterministicVector(text: string, dimensions = 384): number[] {
     const vector = new Array(dimensions).fill(0);
-    const cleaned = text.toLowerCase().replace(/[^a-z0-9]/g, '');
-    
-    // Distribute weights deterministically based on character frequencies
+    const cleaned = text.toLowerCase().trim();
     for (let i = 0; i < cleaned.length; i++) {
       const charCode = cleaned.charCodeAt(i);
-      const index = (charCode + i) % dimensions;
+      const index = (charCode + i * 31) % dimensions;
       vector[index] += 1.0;
     }
-    
-    // Normalize
     const magnitude = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
     return vector.map(val => (magnitude > 0 ? val / magnitude : 1 / Math.sqrt(dimensions)));
   }

@@ -11,8 +11,8 @@ export class LinkedInAgent {
   private readonly password = process.env.LINKEDIN_PASSWORD;
   private readonly headless = process.env.SCRAPER_HEADLESS !== 'false';
 
-  async findJobs(searchTerm: string, locationPref: string, pageNum: number): Promise<Job[]> {
-    this.logger.log(`[SCRAPER: LINKEDIN] Searching for '${searchTerm}' in '${locationPref}' (Page ${pageNum})...`);
+  async findJobs(searchTerm: string, locationPref: string, pageNum: number, currentCycle?: number, experienceYears?: number): Promise<Job[]> {
+    this.logger.log(`[SCRAPER: LINKEDIN] Searching for '${searchTerm}' in '${locationPref}' (Page ${pageNum}, Cycle ${currentCycle || 1}, Exp ${experienceYears !== undefined ? experienceYears : 'N/A'})...`);
 
     const jobs: Job[] = [];
     let browser: Browser | null = null;
@@ -82,10 +82,37 @@ export class LinkedInAgent {
 
       // 4. Construct Search URL
       let searchUrl = '';
+      let queryParams = '';
+
+      if (experienceYears !== undefined) {
+        if (experienceYears < 2) {
+          queryParams += '&f_E=2';
+        } else if (experienceYears >= 2 && experienceYears < 5) {
+          queryParams += '&f_E=3';
+        } else if (experienceYears >= 5 && experienceYears < 8) {
+          queryParams += '&f_E=4';
+        } else {
+          queryParams += '&f_E=5';
+        }
+      }
+
+      if (currentCycle !== undefined) {
+        if (currentCycle < 3) {
+          queryParams += '&f_TPR=r604800'; // Past week
+        } else {
+          queryParams += '&f_TPR=r2592000'; // Past month
+        }
+      }
+
+      const locationPrefLower = locationPref.toLowerCase();
+      if (locationPrefLower.includes('remote')) {
+        queryParams += '&f_WT=2'; // Remote only
+      }
+
       if (isLoggedIn) {
-        searchUrl = `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(searchTerm)}&location=${encodeURIComponent(cleanLocation)}&start=${(pageNum - 1) * 25}`;
+        searchUrl = `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(searchTerm)}&location=${encodeURIComponent(cleanLocation)}&start=${(pageNum - 1) * 25}${queryParams}`;
       } else {
-        searchUrl = `https://${subdomain}.linkedin.com/jobs/search?keywords=${encodeURIComponent(searchTerm)}&location=${encodeURIComponent(cleanLocation)}&start=${(pageNum - 1) * 25}&position=1&pageNum=${pageNum - 1}`;
+        searchUrl = `https://${subdomain}.linkedin.com/jobs/search?keywords=${encodeURIComponent(searchTerm)}&location=${encodeURIComponent(cleanLocation)}&start=${(pageNum - 1) * 25}&position=1&pageNum=${pageNum - 1}${queryParams}`;
       }
 
       this.logger.log(`[LinkedIn Agent] Navigating to search URL: ${searchUrl}`);
@@ -108,8 +135,11 @@ export class LinkedInAgent {
 
       this.logger.log(`[LinkedIn Agent] Found ${cards.length} raw job elements.`);
 
+      const seenUrls = new Set<string>();
+
       // 7. Parse the cards
-      for (const card of cards.slice(0, 10)) { // Limit to top 10 for safety
+      for (const card of cards) {
+        if (jobs.length >= 10) break; // Limit to top 10 unique for safety
         try {
           let title = '';
           let company = '';
@@ -146,6 +176,10 @@ export class LinkedInAgent {
           }
 
           if (title && company) {
+            const cleanUrl = (url || searchUrl).split('?')[0].trim().toLowerCase();
+            if (seenUrls.has(cleanUrl)) continue;
+            seenUrls.add(cleanUrl);
+
             description = `LinkedIn job listing for a ${title} position at ${company} in ${loc}.`;
             const jobId = generateJobId('linkedin', company, title, url || searchUrl);
             jobs.push({

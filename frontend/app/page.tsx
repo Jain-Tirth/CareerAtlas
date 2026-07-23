@@ -48,8 +48,8 @@ export default function Home() {
   const [profile, setProfile] = useState<ParsedProfile | null>(null);
   
   // Search state
-  const [searchTerms, setSearchTerms] = useState<string[]>([]);
-  const [newTermInput, setNewTermInput] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [locationPref, setLocationPref] = useState<string>("Ahmedabad");
   const [isRemoteOpen, setIsRemoteOpen] = useState<boolean>(true);
   const [employmentTypes, setEmploymentTypes] = useState<string[]>(["Full-time"]);
@@ -66,6 +66,11 @@ export default function Home() {
     reasoning: string;
     status: string;
     createdAt: string;
+    confidenceScore?: number;
+    confidenceFactors?: {
+      positive: string[];
+      negative: string[];
+    } | string;
   }
 
   // Status and logs
@@ -144,6 +149,26 @@ export default function Home() {
     }
   };
 
+  const mapBackendProfileToParsedProfile = (data: any): ParsedProfile => {
+    return {
+      fullName: data.fullName || "",
+      email: data.email || "",
+      phone: data.phone || "",
+      targetRole: data.targetRole || data.preferredRoles?.[0] || "",
+      coreSkills: data.coreSkills || data.skills || [],
+      experienceLevel: data.experienceLevel || (data.experienceYears !== undefined ? `${data.experienceYears} years` : ""),
+      preferences: data.preferences ? {
+        locations: data.preferences.locations || [],
+        remote: data.preferences.remote ?? true,
+        employmentTypes: data.preferences.employmentTypes || [],
+      } : undefined,
+      targetLocation: data.targetLocation || data.preferences?.locations?.[0] || "Ahmedabad",
+      isRemoteOpen: data.isRemoteOpen ?? data.preferences?.remote ?? true,
+      experience: data.experience || [],
+      projects: data.projects || [],
+    };
+  };
+
   const fetchProfile = async () => {
     try {
       const email = localStorage.getItem("user_email") || "";
@@ -152,15 +177,16 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         if (data && data.fullName && data.fullName !== "Default User" && data.fullName !== "No Resume Uploaded") {
-          setProfile(data);
-          setLocationPref(data.targetLocation || "Ahmedabad");
-          setIsRemoteOpen(data.isRemoteOpen ?? true);
-          if (data.preferences?.employmentTypes && data.preferences.employmentTypes.length > 0) {
-            setEmploymentTypes(data.preferences.employmentTypes);
+          const mapped = mapBackendProfileToParsedProfile(data);
+          setProfile(mapped);
+          setLocationPref(mapped.targetLocation || "Ahmedabad");
+          setIsRemoteOpen(mapped.isRemoteOpen ?? true);
+          if (mapped.preferences?.employmentTypes && mapped.preferences.employmentTypes.length > 0) {
+            setEmploymentTypes(mapped.preferences.employmentTypes);
           }
           addLog("Loaded existing profile from backend cache.");
-          fetchSuggestions(data.email);
-          fetchResults(data.email);
+          fetchSuggestions(mapped.email);
+          fetchResults(mapped.email);
         }
       }
     } catch (e) {
@@ -203,26 +229,31 @@ export default function Home() {
       eventSource.onmessage = async (event) => {
         try {
           const data = JSON.parse(event.data);
+          if (data.status === "ping" || data.status === "heartbeat") {
+            return;
+          }
           addLog(`[Parsing progress] ${data.log}`);
 
           if (data.status === "success") {
             eventSource.close();
-            const parsedData: ParsedProfile = data.profile;
-            if (parsedData.email) {
-              localStorage.setItem("user_email", parsedData.email);
+            const mapped = mapBackendProfileToParsedProfile(data.profile);
+            if (mapped.email) {
+              localStorage.setItem("user_email", mapped.email);
             }
-            setProfile(parsedData);
-            setLocationPref(parsedData.targetLocation || "Ahmedabad");
-            setIsRemoteOpen(parsedData.isRemoteOpen ?? true);
-            if (parsedData.preferences?.employmentTypes && parsedData.preferences.employmentTypes.length > 0) {
-              setEmploymentTypes(parsedData.preferences.employmentTypes);
+            setProfile(mapped);
+            setLocationPref(mapped.targetLocation || "Ahmedabad");
+            setIsRemoteOpen(mapped.isRemoteOpen ?? true);
+            if (mapped.preferences?.employmentTypes && mapped.preferences.employmentTypes.length > 0) {
+              setEmploymentTypes(mapped.preferences.employmentTypes);
             }
-            addLog(`Resume parsed successfully for ${parsedData.fullName}!`);
+            addLog(`Resume parsed successfully for ${mapped.fullName}!`);
             
-            // Auto-fetch suggestions and results after upload completion
-            await fetchSuggestions(parsedData.email);
-            fetchResults(parsedData.email);
+            // Set parsing state to false immediately so UI loader stops
             setParsing(false);
+
+            // Auto-fetch suggestions and results after upload completion (in background)
+            fetchSuggestions(mapped.email);
+            fetchResults(mapped.email);
           } else if (data.status === "error") {
             eventSource.close();
             addLog(`Error parsing resume: ${data.errorDetails}`);
@@ -255,7 +286,7 @@ export default function Home() {
       const res = await fetch(`/api/profile/suggest-titles${emailParam}`);
       if (!res.ok) throw new Error("Could not load recommendations.");
       const data = await res.json();
-      setSearchTerms(data.searchTerms || []);
+      setSuggestions(data.searchTerms || []);
       addLog(`Generated ${data.searchTerms?.length || 0} suggested search titles.`);
     } catch (e: any) {
       addLog(`Error loading title recommendations: ${e.message}`);
@@ -264,25 +295,10 @@ export default function Home() {
     }
   };
 
-  const handleAddTerm = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanTerm = newTermInput.trim();
-    if (cleanTerm) {
-      setSearchTerms([cleanTerm]);
-      setNewTermInput("");
-      addLog(`Set target search title to: "${cleanTerm}"`);
-    }
-  };
-
-  const handleRemoveTerm = (term: string) => {
-    setSearchTerms((prev) => prev.filter((t) => t !== term));
-    addLog(`Removed title: "${term}"`);
-  };
-
   const handleTriggerWorkflow = async () => {
-    if (searchTerms.length === 0) {
-      addLog("Cannot trigger search: No search titles specified.");
-      alert("Please add at least one job search title.");
+    if (!searchTerm.trim()) {
+      addLog("Cannot trigger search: No search title specified.");
+      alert("Please specify a target job search title.");
       return;
     }
 
@@ -297,7 +313,7 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          searchTerms,
+          searchTerms: [searchTerm.trim()],
           locationPreference: locationPref,
           isRemoteOpen,
           userEmail: profile?.email,
@@ -522,65 +538,64 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Search Term Tags */}
+                {/* Target Search Role */}
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                      Target Job Search Title
-                    </label>
-                    {profile && (
-                      <button
-                        onClick={() => fetchSuggestions(profile?.email)}
-                        disabled={loadingSuggestions}
-                        className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 disabled:opacity-50"
-                      >
-                        <svg className={`w-3 h-3 ${loadingSuggestions ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18" />
-                        </svg>
-                        Regenerate Suggestions
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 p-3 min-h-[48px] bg-zinc-950 rounded-xl border border-zinc-800 mb-3">
-                    {searchTerms.length === 0 ? (
-                      <span className="text-sm text-zinc-600 self-center">No search title set. Parse resume or enter manually below.</span>
-                    ) : (
-                      searchTerms.map((term) => (
-                        <span
-                          key={term}
-                          className="flex items-center gap-1.5 bg-emerald-950/40 border border-emerald-800/30 text-emerald-300 px-3 py-1 rounded-full text-xs font-medium"
-                        >
-                          {term}
-                          <button
-                            onClick={() => handleRemoveTerm(term)}
-                            className="hover:text-red-400 transition-colors"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </span>
-                      ))
-                    )}
-                  </div>
-
-                  <form onSubmit={handleAddTerm} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newTermInput}
-                      onChange={(e) => setNewTermInput(e.target.value)}
-                      placeholder="Enter new job title (will overwrite current)"
-                      className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500/50 transition-colors"
-                    />
-                    <button
-                      type="submit"
-                      className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-semibold text-sm px-4 rounded-xl transition-all"
-                    >
-                      Set Title
-                    </button>
-                  </form>
+                  <label className="block text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                    Target Job Search Title (Only One Role)
+                  </label>
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      addLog(`Target search title set to: "${e.target.value}"`);
+                    }}
+                    placeholder="Enter manual role (e.g. Full-Stack Engineer)"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                  />
                 </div>
+
+                {/* Suggestions Section */}
+                {suggestions.length > 0 && (
+                  <div className="bg-zinc-950/20 border border-zinc-900 rounded-xl p-4 mt-2">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                        Suggested Roles (From Resume)
+                      </span>
+                      {profile && (
+                        <button
+                          onClick={() => fetchSuggestions(profile?.email)}
+                          disabled={loadingSuggestions}
+                          className="text-[10px] text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 disabled:opacity-50"
+                        >
+                          <svg className={`w-2.5 h-2.5 ${loadingSuggestions ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18" />
+                          </svg>
+                          Refresh Suggestions
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {suggestions.map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onClick={() => {
+                            setSearchTerm(suggestion);
+                            addLog(`Selected suggested target search title: "${suggestion}"`);
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                            searchTerm === suggestion
+                              ? "bg-emerald-500/15 border-emerald-500 text-emerald-400 font-semibold"
+                              : "bg-zinc-950 border-zinc-850 text-zinc-400 hover:border-zinc-800 hover:text-zinc-300"
+                          }`}
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
 
@@ -597,7 +612,7 @@ export default function Home() {
 
               <button
                 onClick={handleTriggerWorkflow}
-                disabled={workflowRunning || searchTerms.length === 0}
+                disabled={workflowRunning || !searchTerm.trim()}
                 className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 disabled:from-zinc-800 disabled:to-zinc-850 disabled:text-zinc-500 text-black font-extrabold text-sm py-4 rounded-xl transition-all shadow-lg shadow-emerald-500/15 active:scale-[0.98] flex items-center justify-center gap-2"
               >
                 {workflowRunning ? (
@@ -838,12 +853,29 @@ export default function Home() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {results.map((item) => {
-                let scoreColor = "bg-zinc-805 text-zinc-400";
-                if (item.score >= 90) {
+                const confScore = item.confidenceScore !== undefined && item.confidenceScore !== null ? item.confidenceScore : item.score;
+                
+                let factors: { positive: string[], negative: string[] } = { positive: [], negative: [] };
+                if (item.confidenceFactors) {
+                  try {
+                    factors = typeof item.confidenceFactors === 'string' 
+                      ? JSON.parse(item.confidenceFactors) 
+                      : item.confidenceFactors;
+                  } catch (e) {
+                    console.error("Failed to parse confidence factors", e);
+                  }
+                }
+
+                let fitText = "Low Match";
+                let scoreColor = "bg-zinc-805/30 border-zinc-800 text-zinc-400";
+                if (confScore >= 80) {
+                  fitText = "Strong Match";
                   scoreColor = "bg-emerald-500/10 border-emerald-500/30 text-emerald-400";
-                } else if (item.score >= 75) {
+                } else if (confScore >= 65) {
+                  fitText = "Good Match";
                   scoreColor = "bg-teal-500/10 border-teal-500/30 text-teal-400";
-                } else if (item.score >= 50) {
+                } else if (confScore >= 50) {
+                  fitText = "Moderate Match";
                   scoreColor = "bg-yellow-500/10 border-yellow-500/30 text-yellow-400";
                 }
 
@@ -860,8 +892,8 @@ export default function Home() {
                           </p>
                         </div>
                         <div className={`shrink-0 px-3 py-1.5 rounded-xl border text-xs font-extrabold font-mono flex items-center justify-center gap-1 ${scoreColor}`}>
-                          <span>{item.score}%</span>
-                          <span className="text-[10px] opacity-70">Match</span>
+                          <span>{fitText}</span>
+                          <span className="text-[10px] opacity-70">({confScore}%)</span>
                         </div>
                       </div>
 
@@ -893,6 +925,27 @@ export default function Home() {
                           <p className="bg-zinc-950/40 border border-zinc-900 rounded-xl p-3.5 text-xs text-zinc-350 mt-1 italic leading-relaxed">
                             "{item.reasoning}"
                           </p>
+                        </div>
+                      )}
+
+                      {/* Render Confidence Factors */}
+                      {((factors.positive && factors.positive.length > 0) || (factors.negative && factors.negative.length > 0)) && (
+                        <div className="mt-4 pt-3 border-t border-zinc-850/30">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Confidence Analysis</span>
+                          <div className="mt-2 space-y-1.5">
+                            {factors.positive?.map((p: string, idx: number) => (
+                              <div key={`pos-${idx}`} className="flex items-start gap-1.5 text-[11px] text-emerald-400">
+                                <span className="mt-0.5 select-none">✓</span>
+                                <span>{p}</span>
+                              </div>
+                            ))}
+                            {factors.negative?.map((n: string, idx: number) => (
+                              <div key={`neg-${idx}`} className="flex items-start gap-1.5 text-[11px] text-yellow-500/90">
+                                <span className="mt-0.5 select-none">⚠</span>
+                                <span>{n}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>

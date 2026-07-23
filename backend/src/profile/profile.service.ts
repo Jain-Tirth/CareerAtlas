@@ -40,6 +40,7 @@ export interface ParsedProfile {
 export class ProfileService {
   private readonly logger = new Logger(ProfileService.name);
   private readonly taskEvents = new Subject<{ taskId: string; status: 'running' | 'success' | 'error'; log: string; errorDetails?: string; profile?: UserProfile }>();
+  private readonly taskHistories = new Map<string, Array<{ taskId: string; status: 'running' | 'success' | 'error'; log: string; errorDetails?: string; profile?: UserProfile }>>();
 
   constructor(
     private readonly db: DatabaseService,
@@ -50,12 +51,41 @@ export class ProfileService {
 
   emitTaskEvent(taskId: string | undefined, status: 'running' | 'success' | 'error', log: string, errorDetails?: string, profile?: UserProfile) {
     if (taskId) {
-      this.taskEvents.next({ taskId, status, log, errorDetails, profile });
+      const event = { taskId, status, log, errorDetails, profile };
+      
+      // Store in history
+      if (!this.taskHistories.has(taskId)) {
+        this.taskHistories.set(taskId, []);
+      }
+      this.taskHistories.get(taskId)!.push(event);
+
+      // Emit to active subscribers
+      this.taskEvents.next(event);
+
+      // Clean up memory if task is complete
+      if (status === 'success' || status === 'error') {
+        setTimeout(() => {
+          this.taskHistories.delete(taskId);
+        }, 60000); // Keep history for 1 minute after completion
+      }
     }
   }
 
   getTaskEventStream(taskId: string): Observable<{ taskId: string; status: 'running' | 'success' | 'error'; log: string; errorDetails?: string; profile?: UserProfile }> {
-    return this.taskEvents.asObservable();
+    const history = this.taskHistories.get(taskId) || [];
+    return new Observable(subscriber => {
+      // First, emit all historical events
+      for (const event of history) {
+        subscriber.next(event);
+      }
+      // Then, subscribe to new events
+      const sub = this.taskEvents.subscribe({
+        next: (event) => subscriber.next(event),
+        error: (err) => subscriber.error(err),
+        complete: () => subscriber.complete(),
+      });
+      return () => sub.unsubscribe();
+    });
   }
 
   async runBackgroundParse(taskId: string, pdfBuffer: Buffer): Promise<void> {
@@ -81,18 +111,16 @@ export class ProfileService {
     return null;
   }
 
-
   async invokeModel(promptText: string): Promise<string> {
-    return this.invokeModelWithFallback(promptText);
+    return this.invokeModelWithFallback(promptText, 'general');
   }
 
-
-  private async invokeModelWithFallback(promptText: string): Promise<string> {
+  private async invokeModelWithFallback(promptText: string, purpose?: 'resume-parsing' | 'general'): Promise<string> {
     try {
       return await this.llmGatewayService.invokeLLM(async (model) => {
         const response = await model.invoke(promptText);
         return response.content as string;
-      });
+      }, 2, { purpose });
     } catch (err) {
       this.logger.error(`[PROFILE: LLM] All LLM providers/keys failed: ${err.message}`);
       throw err;
@@ -131,6 +159,53 @@ export class ProfileService {
     
     if (startIndex !== -1) {
       cleaned = cleaned.substring(startIndex);
+      
+      // Try to find the matching closing brace/bracket and truncate trailing text
+      let inString = false;
+      let escape = false;
+      const stack: string[] = [];
+      let endOfJson = -1;
+
+      for (let i = 0; i < cleaned.length; i++) {
+        const char = cleaned[i];
+        if (escape) {
+          escape = false;
+          continue;
+        }
+        if (char === '\\') {
+          escape = true;
+          continue;
+        }
+        if (char === '"') {
+          inString = !inString;
+          continue;
+        }
+        if (!inString) {
+          if (char === '{' || char === '[') {
+            stack.push(char);
+          } else if (char === '}') {
+            if (stack[stack.length - 1] === '{') {
+              stack.pop();
+              if (stack.length === 0) {
+                endOfJson = i + 1;
+                break;
+              }
+            }
+          } else if (char === ']') {
+            if (stack[stack.length - 1] === '[') {
+              stack.pop();
+              if (stack.length === 0) {
+                endOfJson = i + 1;
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      if (endOfJson !== -1) {
+        cleaned = cleaned.substring(0, endOfJson);
+      }
     }
 
     // Handle case where LLM starts with empty braces followed by properties, e.g. "{}\n\"property\": ..."
@@ -269,28 +344,12 @@ export class ProfileService {
     this.emitTaskEvent(taskId, 'running', 'Running AI LLM parsing agent on resume content...');
     this.logger.log('[PROFILE] Structuring resume content via LLM...');
 
-    const prompt = `You are an elite talent acquisition AI. Parse the following raw text from a candidate's resume PDF and extract it into a structured format.
-
-Raw Resume Text:
-${pdfText.substring(0, 30000)}
-
-You MUST respond ONLY with a valid JSON object matching the following structure:
-{
-  "fullName": "John Doe",
-  "email": "johndoe@example.com",
-  "phone": "+1234567890",
-  "skills": ["TypeScript", "NestJS", "PostgreSQL"],
-  "experienceYears": 3.5,
-  "education": ["B.Tech in Computer Science, IIT Bombay, 2022"],
-  "projects": ["Built autonomous recommendation engine using pgvector"],
-  "achievements": ["Ranked 1st in national level hackathon"],
-  "preferredRoles": ["Software Engineer", "Backend Developer"]
-}
-
-Understand the intent of the resume and ONLY THEN DECIDE WHETHER TO ADD A PREFFERED ROLE OR NOT.Extract the experience from the WORK SECTION of the resume AND NOT FROM ANYWHERE ELSE EXPLICITLY. DO NOT GUESS OR COPY THIS EXAMPLE VALUES.DO NOT INCLUDE ANY CONVERSATIONAL FILLER, EXPLANATION, OR MARKDOWN FORMATTING (such as \`\`\`json). RETURN ONLY THE RAW JSON OBJECT.`;
+    const prompt = `Parse the following resume text into a JSON object.
+Resume:${pdfText.substring(0, 8000)}.Return ONLY a valid JSON object with this schema:{"fullName": "","email": "","phone": "","skills": [],"experienceYears": 0,"education": [],"projects": [],"achievements": [],"preferredRoles": []}
+Rules:Return ONLY raw JSON. No markdown or explanations.Never use example values or invent information.Extract "experienceYears" ONLY from the Work Experience / Employment / Professional Experience/Summary section/Calculate the duration of work experience in years, if not then populate to 0. Do NOT infer it from graduation year, projects, internships (unless listed as work experience), skills, certifications, or any other section.Populate "preferredRoles" based on the candidate's career objective, target roles, or inferred from their most recent professional experience titles and skill set (e.g., if their latest title is "ML Engineer Intern" and skills are PyTorch/TensorFlow, include "Machine Learning Engineer"). Extract only information explicitly present or directly implied in the resume.Use empty arrays for missing list fields and empty strings for missing string fields.`;
 
     try {
-      const responseText = await this.invokeModelWithFallback(prompt);
+      const responseText = await this.invokeModelWithFallback(prompt, 'resume-parsing');
       const cleanedResponse = this.cleanJsonText(responseText);
       
       let parsedResult: any;
@@ -398,7 +457,9 @@ canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
       ]);
 
       // 4. Insert skills
-      for (const skill of profile.skills) {
+      for (const rawSkill of profile.skills) {
+        const skill = String(rawSkill || '').trim().substring(0, 255);
+        if (!skill) continue;
         await client.query(`
           INSERT INTO user_skills (user_id, skill)
           VALUES ($1, $2)
@@ -518,17 +579,21 @@ canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
     this.logger.log(`[PROFILE] Generating title suggestions for role: "${activeProfile.preferredRoles.join(', ')}"...`);
 
     const prompt = PromptTemplate.fromTemplate(`
-      You are an elite career advisor. Based on the candidate's preferences below, suggest exactly 1 single, most relevant, specific, standard, industry-common job title search term to query job boards.
-      Focus on the single best term that matches their skills and preferred roles (e.g. "Full Stack Developer", "Backend Developer", "Node.js Developer", "React Developer", or "Software Engineer").
-      Do NOT suggest rare, highly-specialized, or niche titles unless the candidate has extensive professional experience in those specific areas.
-      Do NOT suggest project names, specific technologies that are not job titles, or candidate achievements as search terms. Every suggestion MUST be a standard, widely-recognized job title.
+      You are an elite career advisor. Based on the candidate's preferences below, suggest a JSON array of 5 to 10 standard, widely-recognized job title search terms to query job boards.
+      Focus on generating a broad recall of titles that match their skills, preferred roles, and projects.
+      Include:
+      - Direct synonyms and spelling variants (e.g. "Full Stack Developer", "Fullstack Engineer")
+      - Technology/framework-specific titles based on their core skills (e.g. "React Developer", "Node.js Developer", "Python Engineer")
+      - Inferred roles from projects (e.g. "Distributed Systems Engineer", "API Engineer")
+      - Seniority variants based on their experience years (e.g. "Senior Software Engineer" or "Lead Engineer" if they have 5+ years of experience, or "Software Engineer" otherwise)
+      - Standard abbreviations (e.g. "SDE", "SWE")
       
       Candidate Profile:
       - Preferred Roles: {preferredRoles}
       - Skills: {skills}
       - Experience Years: {experienceYears}
       
-      Respond ONLY with a JSON array of strings containing exactly 1 suggested job title (e.g. ["Software Engineer"]).
+      Respond ONLY with a JSON array of strings containing 5 to 10 suggested job titles.
       Do not include any conversational filler, markdown code blocks, or schema definitions. Just return the valid JSON array of strings.
     `);
 
@@ -539,7 +604,7 @@ canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
     });
 
     try {
-      const responseText = await this.invokeModelWithFallback(formattedPrompt);
+      const responseText = await this.invokeModelWithFallback(formattedPrompt, 'general');
       const cleanedResponse = this.cleanJsonText(responseText);
       const parsed = JSON.parse(cleanedResponse);
       let suggestions: string[] = [];
@@ -548,19 +613,11 @@ canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
       } else {
         suggestions = activeProfile.preferredRoles;
       }
-      console.log(`
-[TRACE] after_suggestions:
-canonical_role: ${JSON.stringify(activeProfile.preferredRoles)}
-suggestions: ${JSON.stringify(suggestions)}
-`);
+      console.log(`[TRACE] after_suggestions: canonical_role: ${JSON.stringify(activeProfile.preferredRoles)} suggestions: ${JSON.stringify(suggestions)}`);
       return suggestions;
     } catch (e) {
       this.logger.error(`[PROFILE] Failed to suggest titles: ${e.message}`);
-      console.log(`
-[TRACE] after_suggestions:
-canonical_role: ${JSON.stringify(activeProfile.preferredRoles)}
-suggestions: ${JSON.stringify(activeProfile.preferredRoles)}
-`);
+      console.log(`[TRACE] after_suggestions:canonical_role: ${JSON.stringify(activeProfile.preferredRoles)}suggestions: ${JSON.stringify(activeProfile.preferredRoles)}`);
       return activeProfile.preferredRoles;
     }
   }

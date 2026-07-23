@@ -44,8 +44,9 @@ export class ScrapingWorker extends WorkerHost {
 
       let scrapedSuccessful = false;
       if (job.applyUrl) {
-        const fullDesc = await this.camoufoxScraperService.scrapeUrl(job.applyUrl);
-        if (fullDesc && fullDesc.length > 200) {
+        const scrapeResult = await this.camoufoxScraperService.scrapeUrl(job.applyUrl);
+        if (scrapeResult && scrapeResult.description && scrapeResult.description.length > 200) {
+          const fullDesc = scrapeResult.description;
           // Post-scrape expiry check: discard if the scraped description indicates the role is closed/expired
           const expiredKeywords = /\b(hiring has ended|no longer accepting applications|this job has expired|role is closed)\b/i;
           if (expiredKeywords.test(fullDesc)) {
@@ -59,9 +60,22 @@ export class ScrapingWorker extends WorkerHost {
           }
 
           job.description = fullDesc;
+          if (scrapeResult.title && scrapeResult.title.length > 0) {
+            const cleanTitle = scrapeResult.title.replace(/\s+at\s+.+$/i, '').trim();
+            // Only update if it doesn't default to 'careers' or generic terms
+            if (!/careers|job|opp|work|recruit|apply/i.test(cleanTitle) || cleanTitle.split(' ').length > 1) {
+              job.title = cleanTitle;
+            }
+          }
+          if (scrapeResult.company && scrapeResult.company.length > 0) {
+            const cleanCompany = scrapeResult.company.replace(/\s+(Inc|LLC|Corp|Ltd|Co|Group|Ltd\.)/i, '').trim();
+            if (!/careers|jobs|lever|greenhouse|workable/i.test(cleanCompany)) {
+              job.company = cleanCompany;
+            }
+          }
           scrapedSuccessful = true;
-          this.logger.log(`[SCRAPING-WORKER] Successfully enriched job description for "${job.title}"`);
-          await this.coordinator.addLog(runId, `Enriched job description for "${job.title}" (${fullDesc.length} chars).`);
+          this.logger.log(`[SCRAPING-WORKER] Successfully enriched job description, title: "${job.title}", company: "${job.company}"`);
+          await this.coordinator.addLog(runId, `Enriched job description for "${job.title}" at "${job.company}" (${fullDesc.length} chars).`);
         }
       }
 

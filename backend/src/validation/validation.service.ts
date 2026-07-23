@@ -1,9 +1,8 @@
   import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
   import { DatabaseService } from '../vector-store/database.service';
-  import { MemoryService } from '../memory/memory.service';
   import { Job } from '../discovery/discovery.service';
   import { QdrantService } from '../vector-store/qdrant.service';
-  import {detectFamily, detectSubfamily } from '../matching/roleTaxonomy';
+  import { EmbeddingsService } from '../embeddings/embeddings.service';
   
   @Injectable()
   export class ValidationService implements OnModuleInit {
@@ -23,8 +22,8 @@
 
     constructor(
       private readonly db: DatabaseService,
-      private readonly memoryService: MemoryService,
       private readonly qdrantService: QdrantService,
+      private readonly embeddingsService: EmbeddingsService,
     ) { }
 
 
@@ -46,10 +45,16 @@
         const uuid = QdrantService.stringToUuid(jobId);
         const res = await this.qdrantService.getClient().retrieve('job_embeddings', {
           ids: [uuid],
-          with_payload: false,
+          with_payload: true,
           with_vector: false,
         });
-        return res.length > 0;
+        if (res.length === 0) return false;
+        
+        const payload = res[0].payload as any;
+        if (!payload) return false;
+        
+        // Skip only if extraction status was SUCCESS
+        return payload.extractionStatus === 'SUCCESS';
       } catch (err) {
         this.logger.error(`[VALIDATION] Qdrant check for job embedding existence failed: ${err.message}`);
         return false;
@@ -76,12 +81,7 @@
           return { valid: false, reason: 'Broken Link' };
         }
 
-        // 4. Check Title Relevance
-        if (searchTerm && !this.isJobRelevant(job.title, searchTerm)) {
-          return { valid: false, reason: `Irrelevant title for search: "${searchTerm}"` };
-        }
-
-        // 6. Check if job already has vector embeddings in Qdrant
+        // 4. Check if job already has vector embeddings in Qdrant
         const inQdrant = await this.isJobInQdrant(job.jobId);
 
         return { valid: true, bypassed: inQdrant };
@@ -90,108 +90,6 @@
         return { valid: false, reason: `Error: ${err.message}` };
       }
     }
-
-    private readonly locationSynonyms: { [key: string]: string } = {
-      'bangalore': 'bengaluru',
-      'banglore': 'bengaluru',
-      'bangalore urban': 'bengaluru',
-      'bengaluru': 'bengaluru',
-      'mumbai': 'mumbai',
-      'bombay': 'mumbai',
-      'new york': 'new york',
-      'new york city': 'new york',
-      'nyc': 'new york',
-      'ny': 'new york',
-      'san francisco': 'san francisco',
-      'sf': 'san francisco',
-      'bay area': 'san francisco'
-    };
-
-    private isJobRelevant(jobTitle: string, searchTerm: string): boolean {
-      const titleLower = jobTitle.toLowerCase();
-      const searchJobLower = searchTerm.toLowerCase();
-
-      // Check negations first
-      const irrelevantKeywords = ['sales', 'marketing', 'recruiter', 'hr', 'accountant', 'ticketing', 'travel', 'admin', 'writer', 'seo'];
-      const hasNegative = irrelevantKeywords.some(neg => {
-        return titleLower.includes(neg) && !searchJobLower.includes(neg);
-      });
-      if (hasNegative) {
-        this.logger.log(`[VALIDATION] Title "${jobTitle}" rejected due to non-technical keyword`);
-        return false;
-      }
-
-      const titleFamily = detectFamily(titleLower);
-      const searchJobFamily = detectFamily(searchJobLower);
-
-      // Add software engineering (family 'software') as generic opening
-      if (titleFamily === 'software') {
-        return true;
-      }
-
-      // If families match, it's relevant
-      if (titleFamily === searchJobFamily && titleFamily !== null) {
-        return true;
-      }
-
-      // If one of them is null, we can do a simple substring comparison fallback to be safe
-      if (titleFamily === null || searchJobFamily === null) {
-        // If search term is a substring of the title, let it pass
-        if (titleLower.includes(searchJobLower) || searchJobLower.includes(titleLower)) {
-          return true;
-        }
-      }
-
-      this.logger.log(`[VALIDATION] Title "${jobTitle}" rejected due to family mismatch: titleFamily=${titleFamily}, searchFamily=${searchJobFamily}`);
-      return false;
-    }
-   
-    private normalizeLocation(loc: string): string {
-      let l = loc.toLowerCase().trim();
-      l = l.replace(/[^a-z0-9\s]/g, '');
-
-      for (const [key, normalized] of Object.entries(this.locationSynonyms)) {
-        if (l === key || l.includes(key)) {
-          return normalized;
-        }
-      }
-      return l;
-    }
-
-    private isLocationRelevant(jobLocation: string, profile: any): boolean {
-      if (!profile || !profile.preferences) {
-        return true;
-      }
-
-      const locations = profile.preferences.locations || [];
-      const isRemoteOpen = profile.preferences.remote ?? true;
-
-      const jobLocLower = jobLocation.toLowerCase();
-
-      // If the job is remote, and the candidate is open to remote, it's valid
-      const isJobRemote = jobLocLower.includes('remote');
-      if (isJobRemote && isRemoteOpen) {
-        return true;
-      }
-
-      if (locations.length > 0) {
-        const normJobLoc = this.normalizeLocation(jobLocation);
-        const hasMatch = locations.some(loc => {
-          const normPrefLoc = this.normalizeLocation(loc);
-          return normJobLoc.includes(normPrefLoc) || normPrefLoc.includes(normJobLoc);
-        });
-        if (hasMatch) {
-          return true;
-        }
-      }
-
-      if (locations.length === 0 && isRemoteOpen) {
-        return true;
-      }
-
-      return false;
-    }
-
 
     private async isExpired(job: Job): Promise<boolean> {
       // JDs with clear "expired/closed" language in body
@@ -283,9 +181,11 @@
 
         clearTimeout(timeoutId);
 
-        // Return true if HTTP status is OK or Redirect (2xx/3xx)
-        return response.status >= 200 && response.status < 400;
-      } catch (err) {
+        if (response.status === 404 || response.status === 410) {
+          return false;
+        }
+        return true;
+      } catch (err: any) {
         // If HEAD fails, fallback to GET with a 2-second timeout as some sites block HEAD requests
         try {
           const controller = new AbortController();
@@ -300,10 +200,17 @@
           });
 
           clearTimeout(timeoutId);
-          return response.status >= 200 && response.status < 400;
-        } catch (getErr) {
-          this.logger.warn(`[VALIDATION] URL connection check failed for: ${url} (${getErr.message})`);
-          return false;
+          if (response.status === 404 || response.status === 410) {
+            return false;
+          }
+          return true;
+        } catch (getErr: any) {
+          const errMsg = getErr.message || '';
+          if (errMsg.includes('ENOTFOUND') || errMsg.includes('getaddrinfo') || errMsg.includes('dns')) {
+            this.logger.warn(`[VALIDATION] URL connection check failed for: ${url} (${getErr.message})`);
+            return false;
+          }
+          return true;
         }
       }
     }
