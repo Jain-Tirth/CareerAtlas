@@ -40,6 +40,7 @@ export class EmbeddingWorker extends WorkerHost {
   }
 
   async process(bullJob: BullJob<EmbeddingJobPayload>): Promise<any> {
+    const embeddingStart = Date.now();
     const { runId, discoveryPayload, job, requirements } = bullJob.data;
 
     try {
@@ -49,13 +50,23 @@ export class EmbeddingWorker extends WorkerHost {
       const textToEmbed = `Job Title: ${job.title}\nCompany: ${job.company}\nLocation: ${requirements.location}\nRequired Skills: ${requirements.requiredSkills.join(', ')}\nDescription: ${job.description}`;
       this.logger.log(`[EMBEDDING-WORKER] Generating Job Embedding for ID: ${job.jobId}`);
       
+      const genStart = Date.now();
       const embedding = await this.embeddingsService.generateEmbedding(textToEmbed);
+      const genMs = Date.now() - genStart;
 
       // Save job details and embedding to Qdrant
+      const qdrantStart = Date.now();
       await this.jobIntelligenceService.saveJobToDb(job, requirements, embedding);
+      const qdrantMs = Date.now() - qdrantStart;
 
       // Mark as processed in local MemoryService cache
       await this.memoryService.markJobAsProcessed(job.company, job.title, job.location, job.source);
+
+      const totalMs = Date.now() - embeddingStart;
+      this.logger.log(
+        `[LATENCY] [job-embedding] Embedding stage completed in ${totalMs}ms ` +
+        `(Vector Generation: ${genMs}ms, Qdrant Upsert: ${qdrantMs}ms) for "${job.title}"`
+      );
 
       // Decrement the remaining jobs counter in coordinator
       const isBatchComplete = await this.coordinator.decrementRemainingJobs(runId);
@@ -66,7 +77,8 @@ export class EmbeddingWorker extends WorkerHost {
 
       return { success: true };
     } catch (err) {
-      this.logger.error(`[EMBEDDING-WORKER] Failed to embed and save job: ${err.message}`);
+      const totalMs = Date.now() - embeddingStart;
+      this.logger.error(`[LATENCY-ERROR] [job-embedding] Failed to embed and save job after ${totalMs}ms: ${err.message}`);
       
       // Decrement on failure to prevent pipeline freeze
       const isBatchComplete = await this.coordinator.decrementRemainingJobs(runId);

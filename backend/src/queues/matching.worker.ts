@@ -34,6 +34,7 @@ export class MatchingWorker extends WorkerHost {
   }
 
   async process(bullJob: BullJob<MatchingJobPayload>): Promise<any> {
+    const matchingWorkerStart = Date.now();
     const payload = bullJob.data;
     const { runId, userId, searchTerms, activeTermIndex, locationSearch, limit, currentCycle, maxCycles, page } = payload;
     const searchTerm = searchTerms[activeTermIndex] || '';
@@ -43,8 +44,10 @@ export class MatchingWorker extends WorkerHost {
       await this.coordinator.addLog(runId, `[Cycle ${currentCycle}] Running Vector Search, Hard Filters, and matching algorithms for "${searchTerm}"...`);
 
       // Run Matching & Ranking engine against Qdrant
+      const engineStart = Date.now();
       const currentMatches = await this.matchingService.matchAndRankJobs(userId, limit);
-      this.logger.log(`[MATCHING-WORKER] Found ${currentMatches.length} matching jobs in current cycle under run ${runId}`);
+      const engineMs = Date.now() - engineStart;
+      this.logger.log(`[LATENCY] [job-matching] Match and rank algorithm completed in ${engineMs}ms (Found ${currentMatches.length} matches in current cycle) for run ${runId}`);
 
       // Merge and deduplicate matches across cycles/terms
       const prevMatches = payload.accumulatedMatches || [];
@@ -211,12 +214,16 @@ export class MatchingWorker extends WorkerHost {
 
       this.logger.log(`Workflow finalizer completed. Top job matches finalized.`);
 
+      const totalMatchingMs = Date.now() - matchingWorkerStart;
+      this.logger.log(`[LATENCY] [job-matching] Overall matching worker stage completed in ${totalMatchingMs}ms for run ${runId}`);
+
       await this.coordinator.updateStep(runId, 'step-7', 'success');
       await this.coordinator.completeRun(runId, `Workflow completed successfully. Found ${topJobs.length} matching jobs.`);
 
       return { completed: true, count: topJobs.length };
     } catch (err: any) {
-      this.logger.error(`[MATCHING-WORKER] Matching worker failed: ${err.message}`, err.stack);
+      const totalMatchingMs = Date.now() - matchingWorkerStart;
+      this.logger.error(`[LATENCY-ERROR] [job-matching] Matching worker stage failed after ${totalMatchingMs}ms: ${err.message}`, err.stack);
       await this.coordinator.failRun(runId, `Matching stage failed: ${err.message}`);
       throw err;
     }

@@ -48,6 +48,7 @@ export class IntelligenceWorker extends WorkerHost implements OnApplicationBoots
   }
 
   async process(bullJob: BullJob<IntelligenceJobPayload>): Promise<any> {
+    const intelStart = Date.now();
     const { runId, discoveryPayload, job } = bullJob.data;
 
     try {
@@ -55,8 +56,9 @@ export class IntelligenceWorker extends WorkerHost implements OnApplicationBoots
 
       // Call the LLM requirements extraction
       const reqs = await this.jobIntelligenceService.extractRequirements(job);
+      const intelMs = Date.now() - intelStart;
 
-    this.logger.log(`[INTELLIGENCE-WORKER] Extracted requirements for: "${job.title}" at "${job.company}"`);
+      this.logger.log(`[LATENCY] [job-intelligence] Extracted requirements in ${intelMs}ms for: "${job.title}" at "${job.company}"`);
 
       // Forward to Embedding Queue
       await this.embeddingQueue.add('embed-job', {
@@ -68,7 +70,8 @@ export class IntelligenceWorker extends WorkerHost implements OnApplicationBoots
 
       return { success: true };
     } catch (err) {
-      this.logger.error(`[INTELLIGENCE-WORKER] Failed to process job intelligence: ${err.message}`);
+      const intelMs = Date.now() - intelStart;
+      this.logger.error(`[LATENCY-ERROR] [job-intelligence] Intelligence stage failed after ${intelMs}ms for "${job.title}": ${err.message}`);
       
       // Decrement on failure to prevent pipeline freeze
       const isBatchComplete = await this.coordinator.decrementRemainingJobs(runId);

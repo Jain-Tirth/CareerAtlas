@@ -24,6 +24,7 @@ export class EmbeddingsService implements OnModuleInit {
    * Generates a 384-dimensional embedding vector for the given text.
    */
   async generateEmbedding(text: string): Promise<number[]> {
+    const embedStart = Date.now();
     if (!text || text.trim().length === 0) {
       return new Array(384).fill(0);
     }
@@ -33,6 +34,8 @@ export class EmbeddingsService implements OnModuleInit {
         const embeddings = this.extractor.embed([text]);
         for await (const batch of embeddings) {
           if (batch && batch.length > 0) {
+            const genMs = Date.now() - embedStart;
+            this.logger.log(`[LATENCY] [embeddings] Fastembed vector generation completed in ${genMs}ms`);
             return Array.from(batch[0]) as number[];
           }
         }
@@ -42,12 +45,16 @@ export class EmbeddingsService implements OnModuleInit {
     }
 
     this.logger.warn(`[EMBEDDINGS] Fastembed unavailable or failed. Generating deterministic 384-dim vector.`);
-    return this.generateDeterministicVector(text, 384);
+    const fallbackVector = this.generateDeterministicVector(text, 384);
+    const genMs = Date.now() - embedStart;
+    this.logger.log(`[LATENCY] [embeddings] Deterministic fallback vector generation completed in ${genMs}ms`);
+    return fallbackVector;
   }
 
   private generateDeterministicVector(text: string, dimensions = 384): number[] {
     const vector = new Array(dimensions).fill(0);
     const cleaned = text.toLowerCase().trim();
+    this.logger.log("[EMBEDDINGS]: Generating deterministic vector");
     for (let i = 0; i < cleaned.length; i++) {
       const charCode = cleaned.charCodeAt(i);
       const index = (charCode + i * 31) % dimensions;

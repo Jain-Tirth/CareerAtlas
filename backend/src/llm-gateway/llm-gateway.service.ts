@@ -92,7 +92,7 @@ export class LlmGatewayService implements OnModuleInit {
     } else if (type === 'gemini') {
       client = new ChatGoogleGenerativeAI({
         apiKey,
-        modelName: 'gemma-4-31b-it',
+        model: 'gemma-4-31b-it',
         temperature: 0,
       });
     }
@@ -169,12 +169,16 @@ export class LlmGatewayService implements OnModuleInit {
       provider.totalRequestsRouted++;
       this.logger.log(`[LLM - GATEWAY] Routing request to: ${provider.name} (Active Load: ${provider.activeRequests}, Total Routed: ${provider.totalRequestsRouted})`);
 
+      const startTime = Date.now();
       try {
         const result = await promptRunner(provider.client);
         provider.activeRequests--;
+        const latencyMs = Date.now() - startTime;
+        this.logger.log(`[LATENCY] [llm-gateway] ${provider.name} (${provider.id}) call completed in ${latencyMs}ms (Provider Type: '${provider.type}')`);
         return result;
       } catch (err) {
         provider.activeRequests--;
+        const latencyMs = Date.now() - startTime;
         attempts++;
 
         const isRateLimit = err.message?.includes('429') || err.message?.includes('rate limit');
@@ -182,11 +186,11 @@ export class LlmGatewayService implements OnModuleInit {
         provider.cooldownUntil = Date.now() + cooldownMs;
 
         this.logger.warn(
-          `[LLM - GATEWAY] Key[${provider.id}]failed(Attempt ${attempts} / ${maxRetries + 1}). Entering cooldown for ${cooldownMs / 1000}s.Error: ${err.message} `
+          `[LATENCY-WARN] [llm-gateway] Key[${provider.id}] failed after ${latencyMs}ms (Attempt ${attempts} / ${maxRetries + 1}). Entering cooldown for ${cooldownMs / 1000}s. Error: ${err.message}`
         );
 
         if (attempts > maxRetries) {
-          throw new Error(`[LLM - GATEWAY] All fallback providers exhausted.Final error: ${err.message} `);
+          throw new Error(`[LLM - GATEWAY] All fallback providers exhausted. Final error: ${err.message}`);
         }
       }
     }
