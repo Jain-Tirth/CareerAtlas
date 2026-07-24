@@ -35,13 +35,16 @@ export class CamoufoxScraperService implements OnModuleDestroy {
   }
 
   async scrapeUrl(url: string): Promise<ScrapedJobDetails | null> {
+    const camoufoxStart = Date.now();
     this.logger.log(`[CAMOUFOX] Scraping URL using shared browser: ${url}`);
     let context: any = null;
     let page: any = null;
     try {
       const browserInstance = await this.getBrowser();
-      context = await browserInstance.newContext();
+      context = await browserInstance.newContext({ viewport: null });
+      context.on('pageerror', () => {});
       page = await context.newPage();
+      page.on('pageerror', () => {});
       
       // Navigate with a 10-second timeout
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10000 });
@@ -52,7 +55,8 @@ export class CamoufoxScraperService implements OnModuleDestroy {
       // Check for authwall redirects or login checks
       const finalUrl = page.url().toLowerCase();
       if (finalUrl.includes('linkedin.com/authwall') || finalUrl.includes('login') || finalUrl.includes('checkpoint')) {
-        this.logger.warn(`[CAMOUFOX] Blocked/Redirected to login/authwall page: ${finalUrl}`);
+        const durationMs = Date.now() - camoufoxStart;
+        this.logger.warn(`[LATENCY-WARN] [camoufox] Redirected/blocked after ${durationMs}ms: ${finalUrl}`);
         return null;
       }
 
@@ -116,6 +120,8 @@ export class CamoufoxScraperService implements OnModuleDestroy {
       }
 
       if (jsonLdDesc && jsonLdDesc.length > 200) {
+        const durationMs = Date.now() - camoufoxStart;
+        this.logger.log(`[LATENCY] [camoufox] Successfully scraped ${jsonLdDesc.length} chars via JSON-LD in ${durationMs}ms for URL: ${url}`);
         return {
           description: jsonLdDesc,
           title: extractedTitle ? String(extractedTitle).trim() : null,
@@ -158,17 +164,20 @@ export class CamoufoxScraperService implements OnModuleDestroy {
       // Basic cleanup
       scrapedText = scrapedText.replace(/\s+/g, ' ').trim();
 
+      const durationMs = Date.now() - camoufoxStart;
       if (scrapedText.length > 200) {
-        this.logger.log(`[CAMOUFOX] Successfully scraped ${scrapedText.length} characters.`);
+        this.logger.log(`[LATENCY] [camoufox] Successfully scraped ${scrapedText.length} chars in ${durationMs}ms for URL: ${url}`);
         return {
           description: scrapedText,
           title: extractedTitle ? String(extractedTitle).trim() : null,
           company: extractedCompany ? String(extractedCompany).trim() : null,
         };
       }
+      this.logger.warn(`[LATENCY-WARN] [camoufox] Scrape finished in ${durationMs}ms but text was insufficient (<200 chars) for URL: ${url}`);
       return null;
     } catch (err) {
-      this.logger.error(`[CAMOUFOX] Failed to scrape URL ${url}: ${err.message}`);
+      const durationMs = Date.now() - camoufoxStart;
+      this.logger.error(`[LATENCY-ERROR] [camoufox] Failed to scrape URL after ${durationMs}ms (${url}): ${err.message}`);
       return null;
     } finally {
       if (page) {

@@ -206,16 +206,9 @@ export class AgentService implements OnApplicationBootstrap {
         }
       }
 
-      // 1. Clear database results for the user
+      // Clear database results for the user
       await this.db.query('DELETE FROM results WHERE user_id = $1', [resolvedUserId]);
       this.logger.log(`[ORCHESTRATOR] Cleared results table history for User ID ${resolvedUserId}`);
-
-      // 2. Reset JSON memory files to empty array
-      const processedFilePath = path.join(process.cwd(), '..', 'processed_jobs.json');
-      const matchedFilePath = path.join(process.cwd(), '..', 'seen_jobs.json');
-      fs.writeFileSync(processedFilePath, JSON.stringify([]), 'utf-8');
-      fs.writeFileSync(matchedFilePath, JSON.stringify([]), 'utf-8');
-      this.logger.log('[ORCHESTRATOR] Reset processed_jobs.json and seen_jobs.json caches.');
     } catch (err: any) {
       this.logger.error(`[ORCHESTRATOR] Failed to clear history: ${err.message}`);
       throw err;

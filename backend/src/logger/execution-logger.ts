@@ -180,6 +180,12 @@ if (typeof process !== 'undefined') {
     const runId = ExecutionLogger.activeRunId || 'unknown_run';
     const msg = reason instanceof Error ? reason.message : String(reason);
     const stack = reason instanceof Error ? reason.stack : undefined;
+    
+    // Suppress internal Playwright-Firefox dispatcher exception when third-party website JavaScript errors lack location metadata
+    if (msg.includes("Cannot read properties of undefined (reading 'url')")) {
+      return;
+    }
+    
     logger.error(runId, `Unhandled Rejection: ${msg}`, { stack });
   });
 

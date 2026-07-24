@@ -60,10 +60,12 @@ export class DiscoveryWorker extends WorkerHost {
       this.logger.warn(`[DISCOVERY-WORKER] Could not fetch user experience_years: ${dbErr.message}`);
     }
 
+    const discoveryStartTime = Date.now();
     try {
-      // Helper to prevent any single scraper agent from hanging the discovery pipeline
-      const withTimeout = async <T>(agentPromise: Promise<T>, agentName: string, timeoutMs = 15000, fallback: T): Promise<T> => {
-        return Promise.race([
+      // Helper to prevent any single scraper agent from hanging the discovery pipeline and log latency
+      const withTimeout = async <T>(agentPromise: Promise<T>, agentName: string, timeoutMs = 15000, fallback: T): Promise<{ data: T; durationMs: number }> => {
+        const agentStart = Date.now();
+        const data = await Promise.race([
           agentPromise,
           new Promise<T>((resolve) => {
             setTimeout(() => {
@@ -72,18 +74,31 @@ export class DiscoveryWorker extends WorkerHost {
             }, timeoutMs);
           }),
         ]);
+        return { data, durationMs: Date.now() - agentStart };
       };
 
       // Run discovery agents in parallel with 15-second individual safeguards
-      const [atsJobs, startupJobs, indiaJobs, linkedinJobs] = await Promise.all([
+      const [atsRes, startupRes, indiaRes, linkedinRes] = await Promise.all([
         withTimeout(this.atsPortalsAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears), 'ATS_PORTALS', 15000, []),
         withTimeout(this.startupBoardsAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears), 'STARTUP_BOARDS', 15000, []),
         withTimeout(this.indiaFocusedAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears), 'INDIA_FOCUSED', 15000, []),
         withTimeout(this.linkedinAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears), 'LINKEDIN', 15000, []),
       ]);
 
+      const atsJobs = atsRes.data;
+      const startupJobs = startupRes.data;
+      const indiaJobs = indiaRes.data;
+      const linkedinJobs = linkedinRes.data;
+
       const rawScrapedJobs = [...atsJobs, ...startupJobs, ...indiaJobs, ...linkedinJobs];
-      
+      const totalDiscoveryMs = Date.now() - discoveryStartTime;
+
+      this.logger.log(
+        `[LATENCY] [job-discovery] Ingestion stage completed in ${totalDiscoveryMs}ms ` +
+        `(ATS: ${atsRes.durationMs}ms, Startup: ${startupRes.durationMs}ms, India: ${indiaRes.durationMs}ms, LinkedIn: ${linkedinRes.durationMs}ms) ` +
+        `for term "${searchTerm}" (Raw: ${rawScrapedJobs.length})`
+      );
+
       // Deduplicate by jobId / applyUrl to prevent duplicate validation & scraping pipeline runs
       const uniqueJobsMap = new Map<string, Job>();
       for (const j of rawScrapedJobs) {
@@ -168,16 +183,14 @@ export class DiscoveryWorker extends WorkerHost {
       // Initialize counter in coordinator
       await this.coordinator.setTotalJobs(runId, uniqueScrapedJobs.length);
       await this.coordinator.updateStep(runId, 'step-3', 'running');
-      await this.coordinator.addLog(runId, `[Cycle ${currentCycle}] Validation starting for ${uniqueScrapedJobs.length} jobs...`);
+      await this.coordinator.addLog(runId, `[Cycle ${currentCycle}] Validation starting for ${uniqueScrapedJobs.length} jobs in bulk...`);
 
-      // Enqueue each job for validation
-      for (const rawJob of uniqueScrapedJobs) {
-        await this.validationQueue.add('validate-job', {
-          runId,
-          discoveryPayload: job.data,
-          job: rawJob,
-        });
-      }
+      // Enqueue batch job for high-performance bulk validation
+      await this.validationQueue.add('validate-batch', {
+        runId,
+        discoveryPayload: job.data,
+        jobs: uniqueScrapedJobs,
+      });
 
       return { count: uniqueScrapedJobs.length };
     } catch (err: any) {

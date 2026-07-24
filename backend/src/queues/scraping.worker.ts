@@ -36,6 +36,7 @@ export class ScrapingWorker extends WorkerHost {
   }
 
   async process(bullJob: BullJob<ScrapingJobPayload>): Promise<any> {
+    const scrapingStart = Date.now();
     const { runId, discoveryPayload, job } = bullJob.data;
 
     try {
@@ -50,7 +51,8 @@ export class ScrapingWorker extends WorkerHost {
           // Post-scrape expiry check: discard if the scraped description indicates the role is closed/expired
           const expiredKeywords = /\b(hiring has ended|no longer accepting applications|this job has expired|role is closed)\b/i;
           if (expiredKeywords.test(fullDesc)) {
-            this.logger.warn(`[SCRAPING-WORKER] Discarding job "${job.title}" at "${job.company}" - Scraped description indicates it is closed/expired.`);
+            const scrapeMs = Date.now() - scrapingStart;
+            this.logger.warn(`[LATENCY-WARN] [job-scraping] Discarding job in ${scrapeMs}ms "${job.title}" at "${job.company}" - Scraped description indicates it is closed/expired.`);
             await this.coordinator.addLog(runId, `Discarded "${job.title}" at "${job.company}" - Role is closed/expired.`);
             const isBatchComplete = await this.coordinator.decrementRemainingJobs(runId);
             if (isBatchComplete) {
@@ -80,9 +82,10 @@ export class ScrapingWorker extends WorkerHost {
       }
 
       const hasValidDescription = scrapedSuccessful || (job.description && job.description.length > 200);
+      const scrapeMs = Date.now() - scrapingStart;
 
       if (!hasValidDescription) {
-        this.logger.warn(`[SCRAPING-WORKER] Discarding job "${job.title}" at "${job.company}" - Description scraping failed and no fallback description is available.`);
+        this.logger.warn(`[LATENCY-WARN] [job-scraping] Discarding job in ${scrapeMs}ms "${job.title}" at "${job.company}" - Description scraping failed and no fallback description is available.`);
         await this.coordinator.addLog(runId, `Discarded "${job.title}" at "${job.company}" - failed to scrape description.`);
 
         // Decrement remaining jobs counter
@@ -94,6 +97,8 @@ export class ScrapingWorker extends WorkerHost {
         return { success: false, reason: 'Failed to retrieve job description' };
       }
 
+      this.logger.log(`[LATENCY] [job-scraping] Scraping stage completed in ${scrapeMs}ms for "${job.title}" at "${job.company}"`);
+
       // Forward to Job Intelligence Queue
       await this.intelligenceQueue.add('parse-job', {
         runId,
@@ -103,7 +108,8 @@ export class ScrapingWorker extends WorkerHost {
 
       return { success: true };
     } catch (err) {
-      this.logger.error(`[SCRAPING-WORKER] Error in scraping job: ${err.message}`);
+      const scrapeMs = Date.now() - scrapingStart;
+      this.logger.error(`[LATENCY-ERROR] [job-scraping] Error in scraping job stage after ${scrapeMs}ms: ${err.message}`);
       
       // Fallback: Check if we still have a valid description before forwarding to prevent pipeline freeze
       const hasValidDescription = job.description && job.description.length > 200;
