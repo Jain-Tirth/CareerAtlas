@@ -43,11 +43,21 @@ interface PipelineStep {
   errorDetails?: string;
 }
 
+interface StoredVersion {
+  id: number;
+  versionName: string;
+  isActive: boolean;
+}
+
 export default function Dashboard() {
   const [file, setFile] = useState<File | null>(null);
   const [parsing, setParsing] = useState<boolean>(false);
   const [profile, setProfile] = useState<ParsedProfile | null>(null);
   
+  // Versions state
+  const [storedVersions, setStoredVersions] = useState<StoredVersion[]>([]);
+  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);
+
   // Search state
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -92,15 +102,67 @@ export default function Dashboard() {
     { id: "step-7", name: "7. Weighted Ranking & Telegram Alerts", description: "Combines matching scores and dispatches top alerts to Telegram", status: "idle" },
   ]);
 
-  // Load existing profile on mount if available
+  // Load existing profile & versions on mount
   useEffect(() => {
     fetchProfile().then(() => {
       fetchResults();
+      fetchVersions();
     });
   }, []);
 
   const addLog = (message: string) => {
     setLogs((prev) => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prev]);
+  };
+
+  const fetchVersions = async () => {
+    try {
+      const email = localStorage.getItem("user_email") || profile?.email || "";
+      const emailParam = email ? `?email=${encodeURIComponent(email)}` : "";
+      const res = await fetch(`/api/profile/versions${emailParam}`);
+      if (res.ok) {
+        const data = await res.json();
+        setStoredVersions(data || []);
+        const active = data?.find((v: any) => v.isActive);
+        if (active) {
+          setSelectedVersionId(active.id);
+        }
+      }
+    } catch (e) {
+      // Ignore version fetch error
+    }
+  };
+
+  const handleSelectStoredVersion = async (versionId: number) => {
+    setSelectedVersionId(versionId);
+    setParsing(true);
+    const selectedName = storedVersions.find(v => v.id === versionId)?.versionName || versionId;
+    addLog(`Activating stored resume version "${selectedName}"...`);
+    try {
+      const email = localStorage.getItem("user_email") || profile?.email || "";
+      const emailParam = email ? `?email=${encodeURIComponent(email)}` : "";
+      const res = await fetch(`/api/profile/versions/${versionId}/activate${emailParam}`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.profile) {
+          const mapped = mapBackendProfileToParsedProfile(data.profile);
+          setProfile(mapped);
+          setLocationPref(mapped.targetLocation || "Ahmedabad");
+          setIsRemoteOpen(mapped.isRemoteOpen ?? true);
+          addLog(`Activated resume version "${selectedName}" successfully!`);
+          fetchSuggestions(mapped.email);
+          fetchResults(mapped.email);
+          fetchVersions();
+        }
+      } else {
+        throw new Error(await res.text());
+      }
+    } catch (e: any) {
+      addLog(`Error activating version: ${e.message}`);
+    } finally {
+      setParsing(false);
+    }
   };
 
   const fetchResults = async (email?: string) => {
@@ -182,6 +244,7 @@ export default function Dashboard() {
           addLog("Loaded existing profile from backend cache.");
           fetchSuggestions(mapped.email);
           fetchResults(mapped.email);
+          fetchVersions();
         }
       }
     } catch (e) {
@@ -199,7 +262,7 @@ export default function Dashboard() {
   const handleUpload = async () => {
     if (!file) return;
     setParsing(true);
-    addLog("Uploading PDF resume for text extraction...");
+    addLog(`Uploading PDF resume "${file.name}" for extraction...`);
     
     const formData = new FormData();
     formData.append("file", file);
@@ -216,7 +279,7 @@ export default function Dashboard() {
 
       const uploadRes = await res.json();
       const taskId = uploadRes.taskId;
-      addLog(`Resume uploaded successfully. Task ID: ${taskId}. Initiating real-time parsing status stream...`);
+      addLog(`Resume uploaded successfully. Task ID: ${taskId}. Initiating parsing status stream...`);
 
       const eventSource = new EventSource(`/api/profile/parse-status/${taskId}`);
 
@@ -240,11 +303,13 @@ export default function Dashboard() {
             if (mapped.preferences?.employmentTypes && mapped.preferences.employmentTypes.length > 0) {
               setEmploymentTypes(mapped.preferences.employmentTypes);
             }
-            addLog(`Resume parsed successfully for ${mapped.fullName}!`);
+            addLog(`Resume parsed and saved as version for ${mapped.fullName}!`);
             setParsing(false);
+            setFile(null);
 
             fetchSuggestions(mapped.email);
             fetchResults(mapped.email);
+            fetchVersions();
           } else if (data.status === "error") {
             eventSource.close();
             addLog(`Error parsing resume: ${data.errorDetails}`);
@@ -270,7 +335,7 @@ export default function Dashboard() {
 
   const fetchSuggestions = async (email?: string) => {
     setLoadingSuggestions(true);
-    addLog("Requesting recommended job titles based on your resume stack...");
+    addLog("Requesting recommended job titles based on your active resume...");
     try {
       const activeEmail = email || profile?.email;
       const emailParam = activeEmail ? `?email=${encodeURIComponent(activeEmail)}` : "";
@@ -376,12 +441,20 @@ export default function Dashboard() {
             <span className="font-bold text-white tracking-tight">CareerAtlas</span>
             <span className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded border border-zinc-700">APP DASHBOARD</span>
           </Link>
+
           <div className="flex items-center gap-4">
+            <Link
+              href="/dashboard/resumes"
+              className="text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 px-3.5 py-2 rounded-lg transition-colors flex items-center gap-1.5 font-medium"
+            >
+              <span>Resumes</span>
+              <span className="text-[10px] bg-blue-950 text-blue-400 px-1.5 py-0.5 rounded border border-blue-800/40 font-mono">VAULT</span>
+            </Link>
             <Link
               href="/"
               className="text-xs text-zinc-400 hover:text-white transition-colors"
             >
-              ← Back to Product Overview
+              ← Overview
             </Link>
           </div>
         </div>
@@ -402,7 +475,7 @@ export default function Dashboard() {
               Autonomous Ingestion & Search Pipeline
             </h1>
             <p className="text-sm text-zinc-400 mt-1">
-              Parse your PDF resume, verify LLM match criteria, and launch parallel job discovery.
+              Select or upload a resume version, verify match criteria, and launch parallel job discovery.
             </p>
           </div>
         </header>
@@ -412,13 +485,13 @@ export default function Dashboard() {
           {/* Left Column - Steps & Config */}
           <div className="lg:col-span-7 flex flex-col gap-8">
             
-            {/* Step 1: Upload Resume */}
+            {/* Step 1: Resume Selection & Upload */}
             <section className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-zinc-850 p-6 shadow-xl relative overflow-hidden group">
               <div className="absolute top-0 left-0 w-1 h-full bg-blue-600/50 group-hover:bg-blue-500 transition-colors" />
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
                   <span className="flex items-center justify-center w-6 h-6 rounded-full bg-zinc-800 text-xs text-zinc-300">1</span>
-                  Resume Ingestion
+                  Resume Ingestion & Version Selection
                 </h2>
                 {profile && (
                   <span className="text-xs bg-emerald-950/40 border border-emerald-800/50 text-emerald-400 px-2.5 py-0.5 rounded-full font-medium">
@@ -427,15 +500,48 @@ export default function Dashboard() {
                 )}
               </div>
 
+              {/* Version Selector Dropdown if stored versions exist */}
+              {storedVersions.length > 0 && (
+                <div className="mb-5 bg-zinc-950/60 border border-zinc-800 rounded-xl p-4 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                      Select Stored Resume Version
+                    </label>
+                    <Link
+                      href="/dashboard/resumes"
+                      className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+                    >
+                      Manage Versions →
+                    </Link>
+                  </div>
+                  <select
+                    value={selectedVersionId || ""}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (val) handleSelectStoredVersion(val);
+                    }}
+                    disabled={parsing}
+                    className="w-full bg-[#09090B] border border-zinc-800 rounded-lg px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                  >
+                    {storedVersions.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.versionName} {v.isActive ? " (PRIMARY / ACTIVE)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Upload Dropzone */}
               <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
                 <label className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-zinc-800 rounded-xl py-6 px-4 hover:border-zinc-700 transition-colors cursor-pointer bg-zinc-950/20">
                   <svg className="w-8 h-8 text-zinc-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   <span className="text-sm text-zinc-300 font-medium text-center">
-                    {file ? file.name : "Select Resume PDF"}
+                    {file ? file.name : "Or Upload New PDF Resume"}
                   </span>
-                  <span className="text-xs text-zinc-500 mt-1">PDF format only</span>
+                  <span className="text-xs text-zinc-500 mt-1">PDF format (auto-saved as new version)</span>
                   <input
                     type="file"
                     accept=".pdf"
@@ -565,7 +671,7 @@ export default function Dashboard() {
                   <div className="bg-zinc-950/20 border border-zinc-900 rounded-xl p-4 mt-2">
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                        Suggested Roles (From Resume Stack)
+                        Suggested Roles (From Active Resume)
                       </span>
                       {profile && (
                         <button
@@ -649,7 +755,7 @@ export default function Dashboard() {
               </h3>
               <div className="flex-1 overflow-y-auto font-mono text-[11px] text-zinc-400 bg-zinc-950/60 p-4 rounded-xl border border-zinc-900 flex flex-col-reverse gap-1.5">
                 {logs.length === 0 ? (
-                  <span className="text-zinc-600">Console idle. Ready for resume ingestion...</span>
+                  <span className="text-zinc-600">Console idle. Select a resume version or upload a PDF to begin...</span>
                 ) : (
                   logs.map((log, idx) => (
                     <div key={idx} className="whitespace-pre-wrap leading-relaxed">
@@ -741,7 +847,7 @@ export default function Dashboard() {
             {/* Profile Info Preview */}
             <section className="bg-zinc-900/20 backdrop-blur-md rounded-2xl border border-zinc-850 p-6 shadow-xl flex-1 flex flex-col">
               <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4">
-                Parsed Profile Metadata Summary
+                Active Profile Metadata Summary
               </h3>
 
               {profile ? (
@@ -793,7 +899,7 @@ export default function Dashboard() {
                   <svg className="w-12 h-12 text-zinc-700 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
-                  <span className="text-sm text-zinc-500">No profile parsed yet. Please upload a PDF resume in Step 1.</span>
+                  <span className="text-sm text-zinc-500">No active profile loaded. Select a stored version or upload a PDF resume in Step 1.</span>
                 </div>
               )}
             </section>

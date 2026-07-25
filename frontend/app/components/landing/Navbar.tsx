@@ -60,6 +60,13 @@ export function Navbar() {
           >
             FAQ
           </a>
+          <Link
+            href="/dashboard/resumes"
+            className="hover:text-white transition-colors duration-200 flex items-center gap-1.5"
+          >
+            <span>Resumes</span>
+            <span className="text-[10px] bg-blue-950 text-blue-400 font-mono px-1.5 py-0.5 rounded border border-blue-800/40">VAULT</span>
+          </Link>
         </nav>
 
         {/* CTA Action */}

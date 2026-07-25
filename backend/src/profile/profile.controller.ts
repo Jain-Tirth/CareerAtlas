@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UploadedFile, UseInterceptors, HttpCode, HttpStatus, Logger, Query, Param, Sse, MessageEvent } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Delete, Body, UploadedFile, UseInterceptors, HttpCode, HttpStatus, Logger, Query, Param, Sse, MessageEvent } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ProfileService, UserProfile } from './profile.service';
 import { Observable, interval, merge } from 'rxjs';
@@ -27,6 +27,7 @@ export class ProfileController {
       size: number;
       buffer: Buffer;
     },
+    @Body('versionName') customVersionName?: string,
   ): Promise<{ success: boolean; taskId: string }> {
     if (!file) {
       throw new Error('No resume file was uploaded.');
@@ -37,8 +38,8 @@ export class ProfileController {
     const taskId = 'parse_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString().slice(-4);
     this.logger.log(`[API] Received resume file "${file.originalname}" (${file.size} bytes). Assigned background taskId: ${taskId}`);
     
-    // Spawn parsing job in the background asynchronously
-    this.profileService.runBackgroundParse(taskId, file.buffer);
+    // Spawn parsing job in the background asynchronously with filename & custom name support
+    this.profileService.runBackgroundParse(taskId, file.buffer, file.originalname, customVersionName);
     
     return { success: true, taskId };
   }
@@ -78,7 +79,6 @@ export class ProfileController {
     if (email) {
       profile = await this.profileService.getProfileByEmail(email);
     } else {
-      // Fallback: get the latest profile in DB to handle newly uploaded resumes correctly
       const pool = (this.profileService as any).db.getPool();
       const usersRes = await pool.query('SELECT id FROM users ORDER BY id DESC LIMIT 1');
       if (usersRes.rows.length > 0) {
@@ -105,6 +105,47 @@ export class ProfileController {
     }
 
     return profile;
+  }
+
+  @Get('versions')
+  async getVersions(@Query('email') email?: string): Promise<any[]> {
+    const profile = await this.getProfile(email);
+    if (!profile || !profile.id) return [];
+    return this.profileService.getUserVersions(profile.id);
+  }
+
+  @Post('versions/:id/activate')
+  async activateVersion(
+    @Param('id') id: string,
+    @Query('email') email?: string,
+  ): Promise<{ success: boolean; profile?: UserProfile }> {
+    const profile = await this.getProfile(email);
+    if (!profile || !profile.id) throw new Error('User profile not found.');
+    const activated = await this.profileService.activateResumeVersion(profile.id, parseInt(id, 10));
+    return { success: !!activated, profile: activated || undefined };
+  }
+
+  @Patch('versions/:id')
+  async renameVersion(
+    @Param('id') id: string,
+    @Body('versionName') versionName: string,
+    @Query('email') email?: string,
+  ): Promise<{ success: boolean }> {
+    const profile = await this.getProfile(email);
+    if (!profile || !profile.id) throw new Error('User profile not found.');
+    const ok = await this.profileService.renameResumeVersion(profile.id, parseInt(id, 10), versionName);
+    return { success: ok };
+  }
+
+  @Delete('versions/:id')
+  async deleteVersion(
+    @Param('id') id: string,
+    @Query('email') email?: string,
+  ): Promise<{ success: boolean }> {
+    const profile = await this.getProfile(email);
+    if (!profile || !profile.id) throw new Error('User profile not found.');
+    const ok = await this.profileService.deleteResumeVersion(profile.id, parseInt(id, 10));
+    return { success: ok };
   }
 
   @Get('suggest-titles')

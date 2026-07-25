@@ -88,9 +88,9 @@ export class ProfileService {
     });
   }
 
-  async runBackgroundParse(taskId: string, pdfBuffer: Buffer): Promise<void> {
+  async runBackgroundParse(taskId: string, pdfBuffer: Buffer, originalFilename?: string, customVersionName?: string): Promise<void> {
     try {
-      const profile = await this.parseResumePdf(pdfBuffer, taskId);
+      const profile = await this.parseResumePdf(pdfBuffer, taskId, originalFilename, customVersionName);
       this.emitTaskEvent(taskId, 'success', 'Profile parsing and vector indexing completed!', undefined, profile);
     } catch (err) {
       this.emitTaskEvent(taskId, 'error', `Parsing failed: ${err.message}`, err.message);
@@ -285,7 +285,7 @@ export class ProfileService {
     return cleaned;
   }
 
-  async parseResumePdf(pdfBuffer: Buffer, taskId?: string): Promise<UserProfile> {
+  async parseResumePdf(pdfBuffer: Buffer, taskId?: string, originalFilename?: string, customVersionName?: string): Promise<UserProfile> {
     this.emitTaskEvent(taskId, 'running', 'Extracting character streams from PDF resume...');
     this.logger.log('[PROFILE] Extracting text from PDF resume...');
     let pdfText = '';
@@ -405,6 +405,12 @@ canonical_role: ${existingProfile ? JSON.stringify(existingProfile.preferredRole
       this.emitTaskEvent(taskId, 'running', 'Saving structured user profile and preferences to database...');
       const savedProfile = await this.saveProfileToDb(profile, taskId);
       
+      // Save version to resume_versions table
+      if (savedProfile.id) {
+        const requestedName = customVersionName || originalFilename || 'Resume.pdf';
+        await this.saveResumeVersion(savedProfile.id, requestedName, savedProfile, pdfText, true);
+      }
+
       console.log(`
 [TRACE] after_resume_upload:
 canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
@@ -619,6 +625,175 @@ canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
       this.logger.error(`[PROFILE] Failed to suggest titles: ${e.message}`);
       console.log(`[TRACE] after_suggestions:canonical_role: ${JSON.stringify(activeProfile.preferredRoles)}suggestions: ${JSON.stringify(activeProfile.preferredRoles)}`);
       return activeProfile.preferredRoles;
+    }
+  }
+
+  async getUniqueVersionName(userId: number, requestedName: string): Promise<string> {
+    let name = requestedName.trim();
+    if (!name) name = 'Resume.pdf';
+
+    const existingRes = await this.db.query(
+      'SELECT version_name FROM resume_versions WHERE user_id = $1',
+      [userId]
+    );
+    const existingNames = new Set(existingRes.rows.map(r => r.version_name.toLowerCase()));
+
+    if (!existingNames.has(name.toLowerCase())) {
+      return name;
+    }
+
+    const lastDot = name.lastIndexOf('.');
+    let baseName = name;
+    let ext = '';
+    if (lastDot > 0) {
+      baseName = name.substring(0, lastDot);
+      ext = name.substring(lastDot);
+    }
+
+    let count = 1;
+    let candidate = `${baseName} (${count})${ext}`;
+    while (existingNames.has(candidate.toLowerCase())) {
+      count++;
+      candidate = `${baseName} (${count})${ext}`;
+    }
+
+    return candidate;
+  }
+
+  async saveResumeVersion(
+    userId: number,
+    versionName: string,
+    profile: UserProfile,
+    rawText?: string,
+    makeActive: boolean = true
+  ): Promise<any> {
+    const client = await this.db.getPool().connect();
+    try {
+      await client.query('BEGIN');
+
+      if (makeActive) {
+        await client.query('UPDATE resume_versions SET is_active = false WHERE user_id = $1', [userId]);
+      }
+
+      const finalVersionName = await this.getUniqueVersionName(userId, versionName);
+
+      const res = await client.query(`
+        INSERT INTO resume_versions (user_id, version_name, is_active, raw_text, parsed_data)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING *;
+      `, [userId, finalVersionName, makeActive, rawText || '', JSON.stringify(profile)]);
+
+      await client.query('COMMIT');
+      return res.rows[0];
+    } catch (err) {
+      await client.query('ROLLBACK');
+      this.logger.error(`[PROFILE: VERSION] Failed to save resume version: ${err.message}`);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async getUserVersions(userId: number): Promise<any[]> {
+    try {
+      const res = await this.db.query(
+        'SELECT id, version_name as "versionName", is_active as "isActive", created_at as "createdAt", updated_at as "updatedAt", parsed_data as "parsedData" FROM resume_versions WHERE user_id = $1 ORDER BY is_active DESC, created_at DESC',
+        [userId]
+      );
+      return res.rows;
+    } catch (err) {
+      this.logger.error(`[PROFILE: VERSION] Failed to list resume versions: ${err.message}`);
+      return [];
+    }
+  }
+
+  async activateResumeVersion(userId: number, versionId: number): Promise<UserProfile | null> {
+    const client = await this.db.getPool().connect();
+    try {
+      await client.query('BEGIN');
+
+      await client.query('UPDATE resume_versions SET is_active = false WHERE user_id = $1', [userId]);
+      const res = await client.query(
+        'UPDATE resume_versions SET is_active = true, updated_at = NOW() WHERE id = $1 AND user_id = $2 RETURNING parsed_data',
+        [versionId, userId]
+      );
+
+      await client.query('COMMIT');
+
+      if (res.rows.length === 0) return null;
+
+      const profile: UserProfile = res.rows[0].parsed_data;
+      profile.id = userId;
+
+      await this.saveProfileToDb(profile);
+      return profile;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      this.logger.error(`[PROFILE: VERSION] Failed to activate version: ${err.message}`);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async renameResumeVersion(userId: number, versionId: number, newName: string): Promise<boolean> {
+    try {
+      const uniqueName = await this.getUniqueVersionName(userId, newName);
+      const res = await this.db.query(
+        'UPDATE resume_versions SET version_name = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3',
+        [uniqueName, versionId, userId]
+      );
+      return (res.rowCount ?? 0) > 0;
+    } catch (err) {
+      this.logger.error(`[PROFILE: VERSION] Failed to rename version: ${err.message}`);
+      return false;
+    }
+  }
+
+  async deleteResumeVersion(userId: number, versionId: number): Promise<boolean> {
+    const client = await this.db.getPool().connect();
+    try {
+      await client.query('BEGIN');
+
+      const checkRes = await client.query(
+        'SELECT is_active FROM resume_versions WHERE id = $1 AND user_id = $2',
+        [versionId, userId]
+      );
+
+      if (checkRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return false;
+      }
+
+      const wasActive = checkRes.rows[0].is_active;
+
+      await client.query('DELETE FROM resume_versions WHERE id = $1 AND user_id = $2', [versionId, userId]);
+
+      if (wasActive) {
+        const remaining = await client.query(
+          'SELECT id FROM resume_versions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+          [userId]
+        );
+        if (remaining.rows.length > 0) {
+          const nextActiveId = remaining.rows[0].id;
+          await client.query('UPDATE resume_versions SET is_active = true WHERE id = $1', [nextActiveId]);
+        }
+      }
+
+      await client.query('COMMIT');
+
+      const remainingProfile = await this.getProfileById(userId);
+      if (remainingProfile && wasActive) {
+        await this.saveProfileToDb(remainingProfile);
+      }
+
+      return true;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      this.logger.error(`[PROFILE: VERSION] Failed to delete version: ${err.message}`);
+      return false;
+    } finally {
+      client.release();
     }
   }
 }

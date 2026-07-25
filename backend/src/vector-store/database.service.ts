@@ -161,6 +161,25 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         CREATE INDEX IF NOT EXISTS idx_user_skills_user ON user_skills(user_id);
       `);
 
+      // 7. Create resume versions table for multi-version management
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS resume_versions (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          version_name VARCHAR(255) NOT NULL,
+          is_active BOOLEAN DEFAULT false,
+          raw_text TEXT,
+          parsed_data JSONB NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT unique_user_version_name UNIQUE (user_id, version_name)
+        );
+      `);
+
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_resume_versions_user ON resume_versions(user_id);
+      `);
+
       await client.query('COMMIT');
       this.logger.log('[DATABASE] Database schema and indexes initialized successfully.');
     } catch (err) {
