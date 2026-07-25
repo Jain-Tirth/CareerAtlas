@@ -1,0 +1,88 @@
+"use client";
+
+import React, { useState } from "react";
+import { ChevronDown } from "lucide-react";
+
+export function FaqSection() {
+  const faqs = [
+    {
+      question: "Is my resume private?",
+      answer: "Yes. Your resume data and parsed profile embeddings are stored isolated and processed strictly for candidate-job matching. We never sell, share, or monetize your resume data with third-party recruiters or advertisers.",
+    },
+    {
+      question: "How accurate are recommendations?",
+      answer: "Recommendations combine hard constraint rules (location, remote preferences, employment type) with 384-dimension vector embeddings. Rather than keyword matching, it evaluates semantic skill overlap, experience tenure, and project tech stack.",
+    },
+    {
+      question: "Can I upload multiple resumes?",
+      answer: "Yes. You can manage multiple resume versions tailored for different roles (such as Frontend Engineer vs. Full-Stack Architect) and test match scores across versions.",
+    },
+    {
+      question: "Can I delete my data?",
+      answer: "Yes. You can purge your uploaded resume, parsed profile taxonomy, vector embeddings, and match history with a single click at any time.",
+    },
+    {
+      question: "Do you support students and new grads?",
+      answer: "Yes. CareerAtlas parses academic projects, hackathons, open-source work, and core technical skills to match entry-level and internship roles effectively without requiring years of corporate tenure.",
+    },
+  ];
+
+  const [openIdx, setOpenIdx] = useState<number | null>(0);
+
+  return (
+    <section id="faq" className="py-24 bg-transparent border-t border-white/5">
+      <div className="max-w-4xl mx-auto px-6">
+        {/* Section Header */}
+        <div className="text-center max-w-2xl mx-auto mb-16">
+          <span className="text-xs font-mono text-[#2563EB] tracking-wider uppercase font-semibold">
+            FREQUENTLY ASKED QUESTIONS
+          </span>
+          <h2 className="text-3xl md:text-5xl font-extrabold text-white tracking-tight mt-3 mb-4">
+            Answers to common questions.
+          </h2>
+          <p className="text-zinc-400 text-sm md:text-base">
+            Everything you need to know about privacy, vector matching, and data control.
+          </p>
+        </div>
+
+        {/* FAQ Accordion List */}
+        <div className="space-y-4">
+          {faqs.map((faq, idx) => {
+            const isOpen = openIdx === idx;
+
+            return (
+              <div
+                key={idx}
+                className={`rounded-2xl border transition-all duration-200 overflow-hidden backdrop-blur-md ${
+                  isOpen
+                    ? "bg-[#111827]/90 border-[#2563EB]/50 shadow-xl card-glow-blue"
+                    : "bg-[#111827]/40 border-white/5 hover:border-white/20"
+                }`}
+              >
+                <button
+                  onClick={() => setOpenIdx(isOpen ? null : idx)}
+                  className="w-full p-6 text-left flex items-center justify-between gap-4 font-bold text-white text-base md:text-lg focus:outline-none"
+                >
+                  <span>{faq.question}</span>
+                  <div
+                    className={`w-7 h-7 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0 transition-transform duration-200 ${
+                      isOpen ? "rotate-180 bg-[#2563EB] text-white" : "text-zinc-400"
+                    }`}
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </div>
+                </button>
+
+                {isOpen && (
+                  <div className="px-6 pb-6 text-sm text-zinc-400 leading-relaxed border-t border-white/5 pt-4">
+                    {faq.answer}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
