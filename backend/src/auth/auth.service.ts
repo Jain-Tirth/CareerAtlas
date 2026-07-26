@@ -111,13 +111,17 @@ export class AuthService {
     }
 
     let user: any = null;
+    let isFirstTime = false;
     try {
-      const existingUserRes = await this.databaseService.query('SELECT id, email, created_at FROM users WHERE email = $1', [email]);
+      const existingUserRes = await this.databaseService.query('SELECT id, email, created_at, last_login_at FROM users WHERE email = $1', [email]);
       if (existingUserRes.rows.length > 0) {
         user = existingUserRes.rows[0];
+        isFirstTime = !user.last_login_at;
+        await this.databaseService.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
       } else {
+        isFirstTime = true;
         const newUserRes = await this.databaseService.query(
-          'INSERT INTO users (email, full_name, created_at) VALUES ($1, $2, NOW()) RETURNING id, email, created_at',
+          'INSERT INTO users (email, full_name, created_at, last_login_at) VALUES ($1, $2, NOW(), NOW()) RETURNING id, email, created_at',
           [email, email.split('@')[0]]
         );
         user = newUserRes.rows[0];
@@ -127,15 +131,103 @@ export class AuthService {
       user = { id: 1, email };
     }
 
-    const tokenPayload = `${user.id}:${email}:${Date.now()}`;
-    const token = crypto.createHmac('sha256', process.env.JWT_SECRET || 'careeratlas_secret').update(tokenPayload).digest('hex');
+    // Generate secure session token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    this.logger.log(`[AUTH] Successfully verified OTP for ${email}`);
+    try {
+      await this.databaseService.query(
+        'INSERT INTO sessions (user_id, email, session_token, expires_at) VALUES ($1, $2, $3, $4)',
+        [user.id, email, token, expiresAt]
+      );
+    } catch (err: any) {
+      this.logger.error(`[AUTH] DB session save failed: ${err.message}`);
+    }
+
+    if (this.redis) {
+      try {
+        const sessionData = JSON.stringify({ userId: user.id, email, expiresAt: expiresAt.toISOString(), isFirstTime });
+        await this.redis.set(`session:${token}`, sessionData, 'EX', 7 * 86400); // 7 days TTL
+      } catch (err: any) {
+        this.logger.error(`[AUTH] Redis session save failed: ${err.message}`);
+      }
+    }
+
+    this.logger.log(`[AUTH] Successfully verified OTP for ${email} (isFirstTime: ${isFirstTime})`);
     return {
       success: true,
       message: 'Login successful.',
       user,
       token,
+      isFirstTime,
+      expiresAt: expiresAt.toISOString(),
     };
+  }
+
+  async validateSession(token: string): Promise<{ valid: boolean; message?: string; user?: any; isFirstTime?: boolean }> {
+    if (!token || token.trim() === '') {
+      return { valid: false, message: 'No session token provided.' };
+    }
+
+    const cleanToken = token.trim();
+
+    // 1. Check Redis fast cache
+    if (this.redis) {
+      try {
+        const cached = await this.redis.get(`session:${cleanToken}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (new Date(parsed.expiresAt) > new Date()) {
+            return { valid: true, user: { id: parsed.userId, email: parsed.email }, isFirstTime: !!parsed.isFirstTime };
+          }
+        }
+      } catch (err: any) {
+        this.logger.error(`[AUTH] Redis session check failed: ${err.message}`);
+      }
+    }
+
+    // 2. Fallback to PostgreSQL DB check
+    try {
+      const res = await this.databaseService.query(
+        'SELECT s.user_id, s.email, s.expires_at, u.created_at, u.last_login_at FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.session_token = $1',
+        [cleanToken]
+      );
+
+      if (res.rows.length === 0) {
+        return { valid: false, message: 'Invalid session token.' };
+      }
+
+      const session = res.rows[0];
+      if (new Date(session.expires_at) <= new Date()) {
+        await this.databaseService.query('DELETE FROM sessions WHERE session_token = $1', [cleanToken]);
+        if (this.redis) await this.redis.del(`session:${cleanToken}`);
+        return { valid: false, message: 'Session expired.' };
+      }
+
+      return {
+        valid: true,
+        user: { id: session.user_id, email: session.email },
+        isFirstTime: !session.last_login_at,
+      };
+    } catch (err: any) {
+      this.logger.error(`[AUTH] DB session validation failed: ${err.message}`);
+      return { valid: false, message: 'Session validation error.' };
+    }
+  }
+
+  async logout(token: string): Promise<{ success: boolean; message: string }> {
+    if (!token) return { success: true, message: 'Logged out.' };
+
+    const cleanToken = token.trim();
+    if (this.redis) {
+      await this.redis.del(`session:${cleanToken}`);
+    }
+    try {
+      await this.databaseService.query('DELETE FROM sessions WHERE session_token = $1', [cleanToken]);
+    } catch (err: any) {
+      // Safe fallback
+    }
+
+    return { success: true, message: 'Logged out successfully.' };
   }
 }
