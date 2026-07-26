@@ -439,9 +439,9 @@ export default function Dashboard() {
               CA
             </div>
             <span className="font-bold text-white tracking-tight">CareerAtlas</span>
-            <span className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded border border-zinc-700">APP DASHBOARD</span>
           </Link>
-
+          
+            <span className="text-[15px] font-mono md:text-2xl font-extrabold tracking-tight text-white px-2 py-0.5 rounded ">DASHBOARD</span>
           <div className="flex items-center gap-4">
             <Link
               href="/dashboard/resumes"
@@ -449,12 +449,6 @@ export default function Dashboard() {
             >
               <span>Resumes</span>
               <span className="text-[10px] bg-blue-950 text-blue-400 px-1.5 py-0.5 rounded border border-blue-800/40 font-mono">VAULT</span>
-            </Link>
-            <Link
-              href="/"
-              className="text-xs text-zinc-400 hover:text-white transition-colors"
-            >
-              ← Overview
             </Link>
           </div>
         </div>
@@ -467,10 +461,6 @@ export default function Dashboard() {
         {/* Header */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-8 border-b border-zinc-800/80 mb-10">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs font-semibold tracking-wider text-emerald-400 uppercase">CareerAtlas Engine v1.0</span>
-            </div>
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">
               Autonomous Ingestion & Search Pipeline
             </h1>
@@ -746,26 +736,6 @@ export default function Dashboard() {
 
           {/* Right Column - Profile Preview & Logs */}
           <div className="lg:col-span-5 flex flex-col gap-8">
-            
-            {/* Live Terminal / Logs */}
-            <section className="bg-black/60 rounded-2xl border border-zinc-850 p-6 shadow-xl flex flex-col h-[280px]">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                Pipeline Activity Console
-              </h3>
-              <div className="flex-1 overflow-y-auto font-mono text-[11px] text-zinc-400 bg-zinc-950/60 p-4 rounded-xl border border-zinc-900 flex flex-col-reverse gap-1.5">
-                {logs.length === 0 ? (
-                  <span className="text-zinc-600">Console idle. Select a resume version or upload a PDF to begin...</span>
-                ) : (
-                  logs.map((log, idx) => (
-                    <div key={idx} className="whitespace-pre-wrap leading-relaxed">
-                      {log}
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-
             {/* Pipeline Architecture Timeline Visualizer */}
             <section className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-zinc-850 p-6 shadow-xl flex flex-col">
               <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
