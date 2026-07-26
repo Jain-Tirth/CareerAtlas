@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { TextLoop } from "@/components/motion-primitives/text-loop";
 
 interface ResumeWorkExperience {
   company: string;
@@ -88,6 +89,7 @@ export default function Dashboard() {
   const [logs, setLogs] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState<boolean>(false);
   const [workflowRunning, setWorkflowRunning] = useState<boolean>(false);
+  const [activeLoopIndex, setActiveLoopIndex] = useState<number>(0);
   const [results, setResults] = useState<JobResult[]>([]);
   const [loadingResults, setLoadingResults] = useState<boolean>(false);
 
@@ -475,31 +477,26 @@ export default function Dashboard() {
           {/* Left Column - Steps & Config */}
           <div className="lg:col-span-7 flex flex-col gap-8">
             
-            {/* Step 1: Resume Selection & Upload */}
-            <section className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-zinc-850 p-6 shadow-xl relative overflow-hidden group">
+            {/* Step 1: Large Dedicated Resume Upload Hero Area */}
+            <section className="bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-zinc-850 p-6 md:p-8 shadow-xl relative overflow-hidden group">
               <div className="absolute top-0 left-0 w-1 h-full bg-blue-600/50 group-hover:bg-blue-500 transition-colors" />
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-5">
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-zinc-800 text-xs text-zinc-300">1</span>
-                  Resume Ingestion & Version Selection
+                  <span className="flex items-center justify-center w-6.5 h-6.5 rounded-full bg-blue-600/20 text-blue-400 border border-blue-500/30 text-xs font-semibold">1</span>
+                  Resume Upload & Version Ingestion
                 </h2>
-                {profile && (
-                  <span className="text-xs bg-emerald-950/40 border border-emerald-800/50 text-emerald-400 px-2.5 py-0.5 rounded-full font-medium">
-                    Profile Loaded
-                  </span>
-                )}
               </div>
 
               {/* Version Selector Dropdown if stored versions exist */}
               {storedVersions.length > 0 && (
-                <div className="mb-5 bg-zinc-950/60 border border-zinc-800 rounded-xl p-4 flex flex-col gap-2">
+                <div className="mb-6 bg-zinc-950/60 border border-zinc-800 rounded-xl p-4 flex flex-col gap-2">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                      Select Stored Resume Version
+                      Active Stored Resume Version
                     </label>
                     <Link
                       href="/dashboard/resumes"
-                      className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+                      className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1 font-medium"
                     >
                       Manage Versions →
                     </Link>
@@ -511,7 +508,7 @@ export default function Dashboard() {
                       if (val) handleSelectStoredVersion(val);
                     }}
                     disabled={parsing}
-                    className="w-full bg-[#09090B] border border-zinc-800 rounded-lg px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                    className="w-full bg-[#09090B] border border-zinc-800 rounded-lg px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 font-mono cursor-pointer"
                   >
                     {storedVersions.map((v) => (
                       <option key={v.id} value={v.id}>
@@ -522,16 +519,27 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Upload Dropzone */}
-              <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
-                <label className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-zinc-800 rounded-xl py-6 px-4 hover:border-zinc-700 transition-colors cursor-pointer bg-zinc-950/20">
-                  <svg className="w-8 h-8 text-zinc-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <span className="text-sm text-zinc-300 font-medium text-center">
-                    {file ? file.name : "Or Upload New PDF Resume"}
+              {/* Large Dedicated Upload Dropzone */}
+              <div className="flex flex-col gap-4">
+                <label className="group/dropzone relative flex flex-col items-center justify-center border-2 border-dashed border-blue-500/30 hover:border-blue-500/70 rounded-2xl p-8 md:p-10 transition-all cursor-pointer bg-gradient-to-b from-blue-950/10 via-zinc-950/40 to-zinc-950/60 hover:from-blue-950/20 hover:to-zinc-950/80 shadow-2xl">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-600/10 border border-blue-500/30 flex items-center justify-center text-blue-400 mb-3 group-hover/dropzone:scale-110 transition-transform shadow-lg shadow-blue-500/10">
+                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+
+                  <span className="text-base text-zinc-100 font-semibold text-center mb-1">
+                    {file ? file.name : "Drag & Drop Your PDF Resume Here"}
                   </span>
-                  <span className="text-xs text-zinc-500 mt-1">PDF format (auto-saved as new version)</span>
+                  <span className="text-xs text-zinc-400 text-center max-w-md leading-relaxed">
+                    {file ? `${(file.size / 1024 / 1024).toFixed(2)} MB PDF Selected` : "Upload your updated PDF resume. CareerAtlas automatically extracts skills, projects, and work experience using LLM parsing."}
+                  </span>
+                  
+                  <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-full text-[11px] text-zinc-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                    PDF format up to 10MB
+                  </div>
+
                   <input
                     type="file"
                     accept=".pdf"
@@ -543,19 +551,19 @@ export default function Dashboard() {
                 <button
                   onClick={handleUpload}
                   disabled={!file || parsing}
-                  className="bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-semibold text-sm px-6 py-4 rounded-xl transition-all shadow-lg shadow-blue-600/10 active:scale-95 flex items-center justify-center gap-2"
+                  className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-850 disabled:text-zinc-500 text-white font-semibold text-sm py-4 rounded-xl transition-all shadow-lg shadow-blue-600/20 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
                 >
                   {parsing ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Parsing via LLM...
+                      Parsing Resume & Generating User Vectors...
                     </>
                   ) : (
                     <>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                       </svg>
-                      Extract & Parse
+                      Extract & Parse Selected Resume
                     </>
                   )}
                 </button>
@@ -742,6 +750,43 @@ export default function Dashboard() {
                 <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
                 Pipeline Architecture Timeline
               </h3>
+
+              {/* Realtime Pipeline Activity TextLoop Banner */}
+              {(workflowRunning || parsing) && (
+                <div className="mb-5 p-4 bg-gradient-to-r from-blue-950/60 via-indigo-950/40 to-zinc-900/80 border border-blue-500/40 rounded-xl flex items-start gap-3 shadow-lg shadow-blue-500/5">
+                  <div className="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                    <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-blue-400 mb-1 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                      Live Pipeline Step {activeLoopIndex + 1}/7
+                    </div>
+                    <TextLoop
+                      interval={2.5}
+                      className="text-xs md:text-sm font-medium text-zinc-100 font-mono tracking-tight"
+                      onIndexChange={(index) => {
+                        setActiveLoopIndex(index);
+                        setPipelineSteps((prev) =>
+                          prev.map((s, idx) => ({
+                            ...s,
+                            status: idx === index ? "running" : idx < index ? "success" : "idle",
+                          }))
+                        );
+                      }}
+                    >
+                      <span>1. Synchronizing candidate profile & user_embeddings vector...</span>
+                      <span>2. Discovery Agent querying ATS portals (Greenhouse, Lever, Ashby)...</span>
+                      <span>3. Running 3-stage validation & checking Qdrant vector hits...</span>
+                      <span>4. Anti-detect Camoufox scraper extracting JSON-LD job schema...</span>
+                      <span>5. Multi-provider LLM Gateway parsing critical skills & remote status...</span>
+                      <span>6. Computing 1536d dense job vector embeddings in Qdrant...</span>
+                      <span>7. 4-Factor Matching Engine scoring technical & logistics fit...</span>
+                    </TextLoop>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col gap-4">
                 {pipelineSteps.map((step, idx) => {
                   let statusColor = "bg-zinc-850 border-zinc-800";
