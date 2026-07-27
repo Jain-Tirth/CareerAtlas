@@ -3,9 +3,10 @@ import { ProfileService } from './profile.service';
 import { ProfileController } from './profile.controller';
 import { EmbeddingsModule } from '../embeddings/embeddings.module';
 import { IntelligenceModule } from '../intelligence/intelligence.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [EmbeddingsModule, IntelligenceModule],
+  imports: [EmbeddingsModule, IntelligenceModule, AuthModule],
   controllers: [ProfileController],
   providers: [ProfileService],
   exports: [ProfileService],

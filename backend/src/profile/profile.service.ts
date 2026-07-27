@@ -88,9 +88,9 @@ export class ProfileService {
     });
   }
 
-  async runBackgroundParse(taskId: string, pdfBuffer: Buffer, originalFilename?: string, customVersionName?: string): Promise<void> {
+  async runBackgroundParse(taskId: string, pdfBuffer: Buffer, originalFilename?: string, customVersionName?: string, targetUserEmail?: string): Promise<void> {
     try {
-      const profile = await this.parseResumePdf(pdfBuffer, taskId, originalFilename, customVersionName);
+      const profile = await this.parseResumePdf(pdfBuffer, taskId, originalFilename, customVersionName, targetUserEmail);
       this.emitTaskEvent(taskId, 'success', 'Profile parsing and vector indexing completed!', undefined, profile);
     } catch (err) {
       this.emitTaskEvent(taskId, 'error', `Parsing failed: ${err.message}`, err.message);
@@ -285,7 +285,7 @@ export class ProfileService {
     return cleaned;
   }
 
-  async parseResumePdf(pdfBuffer: Buffer, taskId?: string, originalFilename?: string, customVersionName?: string): Promise<UserProfile> {
+  async parseResumePdf(pdfBuffer: Buffer, taskId?: string, originalFilename?: string, customVersionName?: string, targetUserEmail?: string): Promise<UserProfile> {
     this.emitTaskEvent(taskId, 'running', 'Extracting character streams from PDF resume...');
     this.logger.log('[PROFILE] Extracting text from PDF resume...');
     let pdfText = '';
@@ -360,21 +360,52 @@ Rules:Return ONLY raw JSON. No markdown or explanations.Never use example values
         throw err;
       }
 
-      // Format parsed results safely
+      // Format parsed results safely without converting objects to [object Object]
+      const formatItem = (v: any): string => {
+        if (typeof v === 'string') return v.trim();
+        if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+        if (v && typeof v === 'object') {
+          const parts: string[] = [];
+          if (v.degree || v.title || v.name || v.role) {
+            parts.push(v.degree || v.title || v.name || v.role);
+          }
+          if (v.institution || v.university || v.school || v.company) {
+            parts.push(v.institution || v.university || v.school || v.company);
+          }
+          if (v.year || v.duration || v.date) {
+            parts.push(`(${v.year || v.duration || v.date})`);
+          }
+          if (v.description || v.summary || v.details) {
+            parts.push(`- ${v.description || v.summary || v.details}`);
+          }
+          if (v.techStack && Array.isArray(v.techStack)) {
+            parts.push(`[Stack: ${v.techStack.join(', ')}]`);
+          }
+          if (parts.length > 0) return parts.join(' ');
+          try {
+            return JSON.stringify(v);
+          } catch {
+            return String(v);
+          }
+        }
+        return '';
+      };
+
       const parseArray = (val: any): string[] => {
-        if (Array.isArray(val)) return val.map(v => String(v).trim()).filter(Boolean);
+        if (Array.isArray(val)) return val.map(v => formatItem(v)).filter(Boolean);
         if (typeof val === 'string') {
           try {
             const parsed = JSON.parse(val);
-            if (Array.isArray(parsed)) return parsed.map(v => String(v).trim()).filter(Boolean);
+            if (Array.isArray(parsed)) return parsed.map(v => formatItem(v)).filter(Boolean);
           } catch {}
           return val.split(',').map(s => s.trim()).filter(Boolean);
         }
         return [];
       };
 
-      const emailLower = String(parsedResult.email || '').trim().toLowerCase();
-      const existingProfile = await this.getProfileByEmail(emailLower);
+      const pdfExtractedEmail = String(parsedResult.email || '').trim().toLowerCase();
+      const emailLower = (targetUserEmail || pdfExtractedEmail || '').trim().toLowerCase();
+      const existingProfile = emailLower ? await this.getProfileByEmail(emailLower) : null;
       console.log(`
 [TRACE] before_resume_upload:
 canonical_role: ${existingProfile ? JSON.stringify(existingProfile.preferredRoles) : 'None'}
@@ -383,6 +414,24 @@ canonical_role: ${existingProfile ? JSON.stringify(existingProfile.preferredRole
       const skills = typeof parsedResult.skills === 'string'
         ? parsedResult.skills.split(',').map(s => s.trim()).filter(Boolean)
         : parseArray(parsedResult.skills);
+
+      let preferredRoles = parseArray(parsedResult.preferredRoles);
+      if (preferredRoles.length === 0 && parsedResult.targetRole) {
+        preferredRoles = [String(parsedResult.targetRole).trim()];
+      }
+      if (preferredRoles.length === 0 && skills.length > 0) {
+        const skillStr = skills.join(' ').toLowerCase();
+        if (skillStr.includes('react') || skillStr.includes('javascript') || skillStr.includes('typescript') || skillStr.includes('frontend')) {
+          preferredRoles = ['Software Engineer', 'Frontend Developer', 'Full Stack Engineer'];
+        } else if (skillStr.includes('python') || skillStr.includes('c++') || skillStr.includes('java') || skillStr.includes('node')) {
+          preferredRoles = ['Software Engineer', 'Backend Engineer', 'Systems Engineer'];
+        } else {
+          preferredRoles = ['Software Engineer'];
+        }
+      }
+      if (preferredRoles.length === 0) {
+        preferredRoles = ['Software Engineer'];
+      }
 
       const profile: UserProfile = {
         fullName: String(parsedResult.fullName || '').trim(),
@@ -393,7 +442,7 @@ canonical_role: ${existingProfile ? JSON.stringify(existingProfile.preferredRole
         education: parseArray(parsedResult.education),
         projects: parseArray(parsedResult.projects),
         achievements: parseArray(parsedResult.achievements),
-        preferredRoles: parseArray(parsedResult.preferredRoles),
+        preferredRoles,
         preferences: {
           locations: [],
           remote: true,
@@ -487,6 +536,7 @@ canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
       this.emitTaskEvent(taskId, 'running', 'Generating 384-dimensional vector embedding for candidate profile...');
       this.logger.log('[PROFILE] Generating User Embedding...');
       const embedding = await this.embeddingsService.generateEmbedding(textToEmbed);
+      (profile as any).embedding = embedding;
 
       // 6. Save embedding to Qdrant vector database
       this.emitTaskEvent(taskId, 'running', 'Indexing user embedding into Qdrant vector database...');
@@ -722,15 +772,80 @@ canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
 
       if (res.rows.length === 0) return null;
 
-      const profile: UserProfile = res.rows[0].parsed_data;
+      const profile: UserProfile & { embedding?: number[] } = res.rows[0].parsed_data;
       profile.id = userId;
 
-      await this.saveProfileToDb(profile);
+      // Optimization: Reuse stored pre-computed vector embedding if available
+      if (profile.embedding && Array.isArray(profile.embedding) && profile.embedding.length > 0) {
+        this.logger.log(`[PROFILE: VERSION] Reusing pre-computed 384-dimensional vector embedding for version ${versionId} (Instant switch).`);
+        await this.syncProfilePreferencesAndVector(userId, profile, profile.embedding);
+      } else {
+        await this.saveProfileToDb(profile);
+      }
+
       return profile;
     } catch (err) {
       await client.query('ROLLBACK');
       this.logger.error(`[PROFILE: VERSION] Failed to activate version: ${err.message}`);
       throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async syncProfilePreferencesAndVector(userId: number, profile: UserProfile, embedding: number[]) {
+    const client = await this.db.getPool().connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM user_preferences WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM user_skills WHERE user_id = $1', [userId]);
+
+      await client.query(`
+        INSERT INTO user_preferences (user_id, preferred_roles, locations, remote, employment_types, experience_years, education, projects, achievements)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `, [
+        userId,
+        profile.preferredRoles,
+        profile.preferences?.locations || [],
+        profile.preferences?.remote ?? true,
+        profile.preferences?.employmentTypes || ['Full-time'],
+        parseFloat(Number(profile.experienceYears || 0).toFixed(1)),
+        profile.education || [],
+        profile.projects || [],
+        profile.achievements || []
+      ]);
+
+      for (const rawSkill of profile.skills) {
+        const skill = String(rawSkill || '').trim().substring(0, 255);
+        if (!skill) continue;
+        await client.query(`
+          INSERT INTO user_skills (user_id, skill)
+          VALUES ($1, $2)
+          ON CONFLICT DO NOTHING
+        `, [userId, skill]);
+      }
+
+      await client.query('COMMIT');
+
+      await this.qdrantService.getClient().upsert('user_embeddings', {
+        wait: true,
+        points: [
+          {
+            id: QdrantService.stringToUuid(userId.toString()),
+            vector: embedding,
+            payload: {
+              fullName: profile.fullName,
+              email: profile.email,
+              experienceYears: profile.experienceYears,
+              skills: profile.skills,
+              preferredRoles: profile.preferredRoles,
+            }
+          }
+        ]
+      });
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+      this.logger.error(`[PROFILE] Failed syncing cached vector: ${err.message}`);
     } finally {
       client.release();
     }
