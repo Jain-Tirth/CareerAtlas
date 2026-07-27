@@ -10,3 +10,4 @@ component_architecture_review.md
 career-watcher
 # Superpower docs
 /.superpowers/*
+.agent/*
