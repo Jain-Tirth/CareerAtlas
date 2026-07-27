@@ -18,6 +18,7 @@ export interface UserProfile {
   projects: string[];
   achievements: string[];
   preferredRoles: string[];
+  suggestedTitles?: string[];
   preferences: {
     locations: string[];
     remote: boolean;
@@ -631,51 +632,39 @@ canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
       return [];
     }
 
+    // Optimization: Return cached title suggestions from DB cache instantly (< 1ms) without calling LLM
+    if (profile.suggestedTitles && Array.isArray(profile.suggestedTitles) && profile.suggestedTitles.length > 0) {
+      this.logger.log(`[PROFILE] Returning ${profile.suggestedTitles.length} cached title suggestions from DB cache (Instant).`);
+      return profile.suggestedTitles;
+    }
+
     const activeProfile = profile;
     this.logger.log(`[PROFILE] Generating title suggestions for role: "${activeProfile.preferredRoles.join(', ')}"...`);
 
-    const prompt = PromptTemplate.fromTemplate(`
-      You are an elite career advisor. Based on the candidate's preferences below, suggest a JSON array of 5 to 10 standard, widely-recognized job title search terms to query job boards.
-      Focus on generating a broad recall of titles that match their skills, preferred roles, and projects.
-      Include:
-      - Direct synonyms and spelling variants (e.g. "Full Stack Developer", "Fullstack Engineer")
-      - Technology/framework-specific titles based on their core skills (e.g. "React Developer", "Node.js Developer", "Python Engineer")
-      - Inferred roles from projects (e.g. "Distributed Systems Engineer", "API Engineer")
-      - Seniority variants based on their experience years (e.g. "Senior Software Engineer" or "Lead Engineer" if they have 5+ years of experience, or "Software Engineer" otherwise)
-      - Standard abbreviations (e.g. "SDE", "SWE")
-      
-      Candidate Profile:
-      - Preferred Roles: {preferredRoles}
-      - Skills: {skills}
-      - Experience Years: {experienceYears}
-      
-      Respond ONLY with a JSON array of strings containing 5 to 10 suggested job titles.
-      Do not include any conversational filler, markdown code blocks, or schema definitions. Just return the valid JSON array of strings.
-    `);
+    // Instant non-LLM title generator from skills & preferred roles
+    const suggestionsSet = new Set<string>();
+    activeProfile.preferredRoles.forEach(r => suggestionsSet.add(r));
 
-    const formattedPrompt = await prompt.format({
-      preferredRoles: activeProfile.preferredRoles.join(', '),
-      skills: activeProfile.skills.join(', '),
-      experienceYears: activeProfile.experienceYears,
-    });
-
-    try {
-      const responseText = await this.invokeModelWithFallback(formattedPrompt, 'general');
-      const cleanedResponse = this.cleanJsonText(responseText);
-      const parsed = JSON.parse(cleanedResponse);
-      let suggestions: string[] = [];
-      if (Array.isArray(parsed)) {
-        suggestions = parsed.map(t => String(t).trim()).filter(Boolean);
-      } else {
-        suggestions = activeProfile.preferredRoles;
-      }
-      console.log(`[TRACE] after_suggestions: canonical_role: ${JSON.stringify(activeProfile.preferredRoles)} suggestions: ${JSON.stringify(suggestions)}`);
-      return suggestions;
-    } catch (e) {
-      this.logger.error(`[PROFILE] Failed to suggest titles: ${e.message}`);
-      console.log(`[TRACE] after_suggestions:canonical_role: ${JSON.stringify(activeProfile.preferredRoles)}suggestions: ${JSON.stringify(activeProfile.preferredRoles)}`);
-      return activeProfile.preferredRoles;
+    const skillStr = (activeProfile.skills || []).join(' ').toLowerCase();
+    if (skillStr.includes('react') || skillStr.includes('javascript') || skillStr.includes('frontend')) {
+      suggestionsSet.add('Frontend Developer');
+      suggestionsSet.add('Full Stack Engineer');
     }
+    if (skillStr.includes('python') || skillStr.includes('c++') || skillStr.includes('java') || skillStr.includes('node')) {
+      suggestionsSet.add('Backend Engineer');
+      suggestionsSet.add('Software Engineer');
+      suggestionsSet.add('Systems Engineer');
+    }
+    if (activeProfile.experienceYears >= 5) {
+      suggestionsSet.add('Senior Software Engineer');
+    } else {
+      suggestionsSet.add('SDE');
+      suggestionsSet.add('Software Engineer');
+    }
+
+    const suggestions = Array.from(suggestionsSet);
+    activeProfile.suggestedTitles = suggestions;
+    return suggestions;
   }
 
   async getUniqueVersionName(userId: number, requestedName: string): Promise<string> {

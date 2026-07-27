@@ -27,6 +27,23 @@ export class AgentController {
     return this.agentService.getWorkflowResults(email);
   }
 
+  @Get('agent/history')
+  async getSearchHistory(
+    @Query('email') email?: string,
+    @Query('versionId') versionId?: string,
+  ) {
+    const vId = versionId ? parseInt(versionId, 10) : undefined;
+    return this.agentService.getSearchHistory(email, vId);
+  }
+
+  @Get('agent/history/:sessionId')
+  async getSessionResults(
+    @Query('sessionId') sessionId: string,
+    @Query('email') email?: string,
+  ) {
+    return this.agentService.getSessionResults(parseInt(sessionId, 10), email);
+  }
+
   // Trigger the job search scraper workflow in the background
   @Post('agent/run')
   @HttpCode(HttpStatus.ACCEPTED)

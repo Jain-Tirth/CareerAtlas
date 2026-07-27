@@ -2,12 +2,16 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, LayoutDashboard, LogIn, UserPlus } from "lucide-react";
+import { isAuthenticated } from "../../utils/auth";
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
+    setIsLoggedIn(isAuthenticated());
+
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
     };
@@ -60,24 +64,38 @@ export function Navbar() {
           >
             FAQ
           </a>
-          <Link
-            href="/dashboard/resumes"
-            className="hover:text-white transition-colors duration-200 flex items-center gap-1.5"
-          >
-            <span>Resumes</span>
-            <span className="text-[10px] bg-blue-950 text-blue-400 font-mono px-1.5 py-0.5 rounded border border-blue-800/40">VAULT</span>
-          </Link>
+          {isLoggedIn && (
+            <Link
+              href="/dashboard/resumes"
+              className="hover:text-white transition-colors duration-200 flex items-center gap-1.5"
+            >
+              <span>Resumes</span>
+              <span className="text-[10px] bg-blue-950 text-blue-400 font-mono px-1.5 py-0.5 rounded border border-blue-800/40">VAULT</span>
+            </Link>
+          )}
         </nav>
 
-        {/* CTA Action */}
-        <div className="flex items-center gap-4">
-          <Link
-            href="/dashboard"
-            className="group relative inline-flex items-center justify-center gap-2 bg-[#2563EB] hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 md:px-5 md:py-2.5 rounded-lg transition-all duration-200 shadow-md shadow-[#2563EB]/20 hover:shadow-lg hover:shadow-[#2563EB]/40 active:scale-95"
-          >
-            <span>Launch App</span>
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-200" />
-          </Link>
+        {/* CTA Action Buttons */}
+        <div className="flex items-center gap-3">
+          {isLoggedIn ? (
+            <Link
+              href="/dashboard"
+              className="group relative inline-flex items-center justify-center gap-2 bg-[#2563EB] hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 md:px-5 md:py-2.5 rounded-lg transition-all duration-200 shadow-md shadow-[#2563EB]/20 hover:shadow-lg hover:shadow-[#2563EB]/40 active:scale-95"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              <span>Go to Dashboard</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-200" />
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="group relative inline-flex items-center justify-center gap-2 bg-[#2563EB] hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 md:px-5 md:py-2.5 rounded-lg transition-all duration-200 shadow-md shadow-[#2563EB]/20 hover:shadow-lg hover:shadow-[#2563EB]/40 active:scale-95"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>Log in / Sign up</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-200" />
+            </Link>
+          )}
         </div>
       </div>
     </header>

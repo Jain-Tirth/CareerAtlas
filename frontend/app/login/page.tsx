@@ -71,8 +71,10 @@ export default function LoginPage() {
     async function checkSession() {
       try {
         const token = localStorage.getItem("careeratlas_token");
+        if (!token) return;
+
         const res = await fetch("/api/auth/session", {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
           const data = await res.json();

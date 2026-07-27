@@ -2,7 +2,9 @@
 
 import React from "react";
 import Link from "next/link";
-import { Plus, FileText, History, Layers, ChevronRight, Sparkles, ArrowLeft, LogOut } from "lucide-react";
+import { Plus, FileText, History, Layers, ChevronRight, LogOut } from "lucide-react";
+
+import { logout } from "../../utils/auth";
 
 export interface StoredVersion {
   id: number;
@@ -37,6 +39,10 @@ export default function AgentSidebar({
   onNewSearch,
   isSearching,
 }: AgentSidebarProps) {
+  const handleLogout = async () => {
+    await logout();
+  };
+
   return (
     <aside className="w-full lg:w-72 bg-[#09090B] border-r border-white/10 p-5 flex flex-col justify-between shrink-0 h-full min-h-[calc(100vh-4rem)] space-y-6 font-sans">
       <div className="space-y-6">
@@ -46,12 +52,7 @@ export default function AgentSidebar({
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-emerald-500 flex items-center justify-center font-black text-white text-xs shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
               CA
             </div>
-            <div className="flex flex-col">
-              <span className="font-extrabold text-white tracking-tight text-sm">CareerAtlas</span>
-              <span className="text-[9px] font-mono text-blue-400 font-semibold tracking-wider uppercase">
-                AI AGENT WORKSPACE
-              </span>
-            </div>
+            <span className="font-extrabold text-white tracking-tight text-base">CareerAtlas</span>
           </Link>
         </div>
 
@@ -147,15 +148,15 @@ export default function AgentSidebar({
         </div>
       </div>
 
-      {/* Footer Navigation */}
-      <div className="pt-4 border-t border-white/5 space-y-2">
-        <Link
-          href="/"
-          className="flex items-center gap-2 text-xs text-zinc-400 hover:text-white transition-colors"
+      {/* Footer Navigation - Logout Button */}
+      <div className="pt-4 border-t border-white/5">
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-2.5 text-xs font-semibold text-zinc-400 hover:text-red-400 p-2.5 rounded-xl hover:bg-red-950/30 transition-all group"
         >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Exit Workspace</span>
-        </Link>
+          <LogOut className="w-4 h-4 text-zinc-500 group-hover:text-red-400 transition-colors" />
+          <span>Log out</span>
+        </button>
       </div>
     </aside>
   );

@@ -195,6 +195,21 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         CREATE INDEX IF NOT EXISTS idx_resume_versions_user ON resume_versions(user_id);
       `);
 
+      // 8. Create agent search sessions table for persistent search history
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS agent_search_sessions (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          version_id INTEGER REFERENCES resume_versions(id) ON DELETE CASCADE,
+          search_title VARCHAR(255) NOT NULL,
+          location_pref VARCHAR(255) NOT NULL,
+          job_count INTEGER DEFAULT 0,
+          run_id VARCHAR(255),
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_search_sessions_user ON agent_search_sessions(user_id, version_id);
+      `);
+
       await client.query('COMMIT');
       this.logger.log('[DATABASE] Database schema and indexes initialized successfully.');
     } catch (err) {

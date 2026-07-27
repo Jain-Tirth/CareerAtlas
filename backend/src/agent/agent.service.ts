@@ -157,9 +157,131 @@ export class AgentService implements OnApplicationBootstrap {
 
       this.logger.log(`[ORCHESTRATOR] Successfully enqueued job search workflow in BullMQ for run ID: ${runId}`);
       await this.coordinator.addLog(runId, `Workflow enqueued in BullMQ. Queue processing active.`);
+
+      // Record search session in database history
+      await this.recordSearchSession(userEmail, searchTerms[0] || 'Software Engineer', locationPref, 0, runId);
     } catch (err: any) {
       this.logger.error(`[ORCHESTRATOR] Failed to enqueue workflow to BullMQ: ${err.message}`);
       await this.coordinator.failRun(runId, `Enqueue failed: ${err.message}`);
+    }
+  }
+
+  async recordSearchSession(
+    userEmail: string | undefined,
+    searchTitle: string,
+    locationPref: string,
+    jobCount: number,
+    runId: string,
+  ) {
+    try {
+      let resolvedUserId = this.activeUserId;
+      if (userEmail) {
+        const userRes = await this.db.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [userEmail.trim()]);
+        if (userRes.rows.length > 0) resolvedUserId = userRes.rows[0].id;
+      }
+
+      const verRes = await this.db.query('SELECT id FROM resume_versions WHERE user_id = $1 AND is_active = true LIMIT 1', [resolvedUserId]);
+      const versionId = verRes.rows.length > 0 ? verRes.rows[0].id : null;
+
+      await this.db.query(`
+        INSERT INTO agent_search_sessions (user_id, version_id, search_title, location_pref, job_count, run_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [resolvedUserId, versionId, searchTitle, locationPref, jobCount, runId]);
+
+      this.logger.log(`[AGENT: HISTORY] Recorded search session for User ${resolvedUserId}, Version ${versionId}: "${searchTitle}"`);
+    } catch (err: any) {
+      this.logger.error(`[AGENT: HISTORY] Failed to record search session: ${err.message}`);
+    }
+  }
+
+  async getSearchHistory(email?: string, versionId?: number) {
+    try {
+      let resolvedUserId = this.activeUserId;
+      if (email) {
+        const userRes = await this.db.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
+        if (userRes.rows.length > 0) resolvedUserId = userRes.rows[0].id;
+      }
+
+      let queryText = `
+        SELECT s.id, s.search_title as "searchTitle", s.location_pref as "locationPref",
+               s.job_count as "jobCount", s.run_id as "runId", s.created_at as "createdAt",
+               v.version_name as "versionName"
+        FROM agent_search_sessions s
+        LEFT JOIN resume_versions v ON s.version_id = v.id
+        WHERE s.user_id = $1
+      `;
+      const params: any[] = [resolvedUserId];
+
+      if (versionId) {
+        queryText += ` AND s.version_id = $2`;
+        params.push(versionId);
+      }
+
+      queryText += ` ORDER BY s.created_at DESC LIMIT 30`;
+
+      const res = await this.db.query(queryText, params);
+      return res.rows.map((r) => ({
+        id: String(r.id),
+        title: `${r.searchTitle} (${r.locationPref})`,
+        searchTitle: r.searchTitle,
+        locationPref: r.locationPref,
+        jobCount: r.jobCount,
+        runId: r.runId,
+        timestamp: new Date(r.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }));
+    } catch (err: any) {
+      this.logger.error(`[AGENT: HISTORY] Failed to get search history: ${err.message}`);
+      return [];
+    }
+  }
+
+  async getSessionResults(sessionId: number, email?: string) {
+    try {
+      let resolvedUserId = this.activeUserId;
+      if (email) {
+        const userRes = await this.db.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
+        if (userRes.rows.length > 0) resolvedUserId = userRes.rows[0].id;
+      }
+
+      const sessRes = await this.db.query('SELECT * FROM agent_search_sessions WHERE id = $1 AND user_id = $2', [sessionId, resolvedUserId]);
+      if (sessRes.rows.length === 0) return { session: null, results: [] };
+
+      const session = sessRes.rows[0];
+      const runId = session.run_id;
+
+      let resultsRes;
+      if (runId) {
+        resultsRes = await this.db.query(`
+          SELECT id, job_id as "jobId", company, title, location, source, url, score, reasoning, status, created_at as "createdAt",
+                 confidence_score as "confidenceScore", confidence_factors as "confidenceFactors"
+          FROM results
+          WHERE user_id = $1 AND run_id = $2
+          ORDER BY score DESC, created_at DESC
+          LIMIT 100
+        `, [resolvedUserId, runId]);
+      } else {
+        resultsRes = await this.db.query(`
+          SELECT id, job_id as "jobId", company, title, location, source, url, score, reasoning, status, created_at as "createdAt",
+                 confidence_score as "confidenceScore", confidence_factors as "confidenceFactors"
+          FROM results
+          WHERE user_id = $1
+          ORDER BY score DESC, created_at DESC
+          LIMIT 100
+        `, [resolvedUserId]);
+      }
+
+      return {
+        session: {
+          id: String(session.id),
+          searchTitle: session.search_title,
+          locationPref: session.location_pref,
+          jobCount: session.job_count,
+        },
+        results: resultsRes.rows,
+      };
+    } catch (err: any) {
+      this.logger.error(`[AGENT: HISTORY] Failed to get session results: ${err.message}`);
+      return { session: null, results: [] };
     }
   }
 
@@ -206,7 +328,8 @@ export class AgentService implements OnApplicationBootstrap {
         }
       }
 
-      // Clear database results for the user
+      // Clear database results & search sessions for the user
+      await this.db.query('DELETE FROM agent_search_sessions WHERE user_id = $1', [resolvedUserId]);
       await this.db.query('DELETE FROM results WHERE user_id = $1', [resolvedUserId]);
       this.logger.log(`[ORCHESTRATOR] Cleared results table history for User ID ${resolvedUserId}`);
     } catch (err: any) {

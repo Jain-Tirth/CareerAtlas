@@ -1,12 +1,19 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, Variants } from "framer-motion";
-import { ArrowRight, Play, CheckCircle2, ShieldCheck, Target } from "lucide-react";
+import { ArrowRight, Play, CheckCircle2, ShieldCheck, Target, LayoutDashboard, LogIn } from "lucide-react";
 import { ProductMockup } from "./ProductMockup";
+import { isAuthenticated } from "../../utils/auth";
 
 export function HeroSection() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    setIsLoggedIn(isAuthenticated());
+  }, []);
+
   // Words for animated headline
   const headlineWords = [
     { text: "The", highlight: false },
@@ -129,16 +136,30 @@ export function HeroSection() {
             transition={{ type: "spring", stiffness: 400, damping: 25 }}
             className="w-full sm:w-auto"
           >
-            <Link
-              href="/dashboard"
-              className="relative group/btn w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-[#2563EB] hover:bg-blue-500 text-white text-base font-semibold px-8 py-3.5 rounded-xl transition-all duration-200 btn-glow-blue overflow-hidden"
-            >
-              <span className="relative z-10 flex items-center gap-2">
-                <span>Get Started Free</span>
-                <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
-              </span>
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-500 to-[#2563EB] opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300" />
-            </Link>
+            {isLoggedIn ? (
+              <Link
+                href="/dashboard"
+                className="relative group/btn w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-[#2563EB] hover:bg-blue-500 text-white text-base font-semibold px-8 py-3.5 rounded-xl transition-all duration-200 btn-glow-blue overflow-hidden"
+              >
+                <span className="relative z-10 flex items-center gap-2">
+                  <LayoutDashboard className="w-5 h-5" />
+                  <span>Go to Dashboard</span>
+                  <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-500 to-[#2563EB] opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300" />
+              </Link>
+            ) : (
+              <Link
+                href="/login"
+                className="relative group/btn w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-[#2563EB] hover:bg-blue-500 text-white text-base font-semibold px-8 py-3.5 rounded-xl transition-all duration-200 btn-glow-blue overflow-hidden"
+              >
+                <span className="relative z-10 flex items-center gap-2">
+                  <span>Get Started</span>
+                  <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-500 to-[#2563EB] opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300" />
+              </Link>
+            )}
           </motion.div>
 
           <motion.div
