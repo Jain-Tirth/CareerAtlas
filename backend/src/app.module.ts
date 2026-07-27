@@ -5,6 +5,7 @@ import { VectorStoreModule } from './vector-store/vector-store.module';
 import { LlmGatewayModule } from './llm-gateway/llm-gateway.module';
 import { QueuesModule } from './queues/queues.module';
 import { AuthModule } from './auth/auth.module';
+import { CryptoModule } from './crypto/crypto.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AuthModule } from './auth/auth.module';
     QueuesModule,
     AgentModule,
     AuthModule,
+    CryptoModule,
   ],
 })
 export class AppModule {}
