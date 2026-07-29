@@ -402,11 +402,14 @@ export default function AutonomousAgentWorkspace() {
       });
 
       if (!res.ok) throw new Error(await res.text() || "Failed to trigger search.");
+      const runData = await res.json();
+      const activeRunId = runData.runId;
 
       // Real-time backend status polling loop directly synced with PipelineCoordinatorService
       const pollInterval = setInterval(async () => {
         try {
-          const statusRes = await fetch("/api/agent/status", {
+          const runParam = activeRunId ? `?runId=${encodeURIComponent(activeRunId)}` : "";
+          const statusRes = await fetch(`/api/agent/status${runParam}`, {
             headers: getAuthHeaders(),
           });
           if (statusRes.ok) {
