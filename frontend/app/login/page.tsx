@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, ShieldCheck, ArrowRight, AlertCircle, RefreshCw, KeyRound, Sparkles, TrendingUp, Cpu, CheckCircle2 } from "lucide-react";
 import Image from "next/image";
+import { Skiper106Input } from "@/components/ui/skiper-ui/skiper106";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -181,22 +182,15 @@ export default function LoginPage() {
                 onSubmit={handleSendOtp}
                 className="space-y-4"
               >
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                    Gmail / Email Address
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="name@gmail.com"
-                      required
-                      className="w-full bg-slate-950/80 border border-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-600 outline-none transition-all"
-                    />
-                  </div>
-                </div>
+                <Skiper106Input
+                  label="Gmail / Email Address"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@gmail.com"
+                  required
+                  icon={<Mail className="w-4 h-4" />}
+                />
 
                 <button
                   type="submit"
@@ -223,7 +217,7 @@ export default function LoginPage() {
                 className="space-y-4"
               >
                 <div>
-                  <div className="flex justify-between items-center mb-2">
+                  <div className="flex justify-between items-center mb-1">
                     <label className="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
                       6-Digit Verification Code
                     </label>
@@ -233,18 +227,16 @@ export default function LoginPage() {
                       </span>
                     )}
                   </div>
-                  <div className="relative">
-                    <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                    <input
-                      type="text"
-                      maxLength={6}
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                      placeholder="123456"
-                      required
-                      className="w-full bg-slate-950/80 border border-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-xl py-3 pl-10 pr-4 text-center tracking-[0.5em] text-lg font-mono text-slate-100 placeholder-slate-700 outline-none transition-all"
-                    />
-                  </div>
+                  <Skiper106Input
+                    type="text"
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                    placeholder="123456"
+                    required
+                    icon={<KeyRound className="w-4 h-4" />}
+                    className="text-center tracking-[0.5em] text-lg font-mono"
+                  />
                 </div>
 
                 <button

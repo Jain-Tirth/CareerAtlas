@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { User, MapPin, Briefcase, GraduationCap, Sparkles, SlidersHorizontal } from "lucide-react";
+import { User, MapPin, Briefcase, GraduationCap, Sparkles, SlidersHorizontal, Search } from "lucide-react";
+import { Skiper106Input } from "@/components/ui/skiper-ui/skiper106";
 
 export interface ParsedProfile {
   fullName: string;
@@ -57,15 +58,14 @@ export default function RightInspectorPanel({
 
       {/* Target Search Term */}
       <div className="space-y-2">
-        <label className="block text-[10px] font-mono font-bold uppercase text-zinc-400">
-          Target Role Query
-        </label>
-        <input
+        <Skiper106Input
+          label="Typed Preferred Role"
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="e.g. Frontend Engineer, Full Stack"
-          className="w-full bg-[#111827] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors font-mono"
+          icon={<Search className="w-4 h-4" />}
+          className="font-mono text-xs"
         />
 
         {/* Suggestions */}
@@ -94,18 +94,15 @@ export default function RightInspectorPanel({
 
       {/* Target Location & Remote */}
       <div className="space-y-3">
-        <div>
-          <label className="block text-[10px] font-mono font-bold uppercase text-zinc-400 mb-1">
-            Target Search Location
-          </label>
-          <input
-            type="text"
-            value={locationPref}
-            onChange={(e) => setLocationPref(e.target.value)}
-            placeholder="e.g. Ahmedabad, Remote"
-            className="w-full bg-[#111827] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors font-mono"
-          />
-        </div>
+        <Skiper106Input
+          label="Target Search Location"
+          type="text"
+          value={locationPref}
+          onChange={(e) => setLocationPref(e.target.value)}
+          placeholder="e.g. Ahmedabad, Remote"
+          icon={<MapPin className="w-4 h-4" />}
+          className="font-mono text-xs"
+        />
 
         <div className="flex items-center justify-between bg-[#111827] border border-white/10 rounded-xl p-3">
           <span className="text-xs text-zinc-300 font-medium">Include Remote Jobs</span>
