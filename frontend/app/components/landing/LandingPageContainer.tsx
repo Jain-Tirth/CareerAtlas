@@ -10,7 +10,7 @@ import { FaqSection } from "./FaqSection";
 import { CtaSection } from "./CtaSection";
 import { Footer } from "./Footer";
 import { DoubleStairPreloader } from "./DoubleStairPreloader";
-import { VelocityScrollTicker } from "./VelocityScrollTicker";
+import { ScrollReveal, ScrollTextReveal } from "./ScrollReveal";
 
 export function LandingPageContainer() {
   const pageRef = useRef<HTMLDivElement>(null);
@@ -47,26 +47,31 @@ export function LandingPageContainer() {
           <Navbar />
           <main>
             <HeroSection />
-            
-            {/* Skiper UI Smooth Velocity Ticker Banner */}
-            <VelocityScrollTicker
-              text="AI VECTOR MATCHING • REAL-TIME SCRAPING • ZERO RECRUITER SPAM • 99.4% PRECISION MATCHING • AUTONOMOUS CAREER OS • "
-              defaultVelocity={1.5}
-              className="text-blue-400/90"
-            />
 
-            <PipelineSection />
-            
-            <VelocityScrollTicker
-              text="QDRANT EMBEDDINGS • CAMOUFOX ANTI-DETECT BROWSER • FAST SWC COMPILER • DETERMINISTIC MATCH SCORING • "
-              defaultVelocity={-1.5}
-              className="text-emerald-400/90"
-            />
+            {/* Scroll-Driven Progressive Word Reveal */}
+            <ScrollTextReveal text="Autonomous AI matching across Qdrant vector spaces, anti-detect browser scraping, and zero recruiter noise." />
 
-            <FeaturesSection />
-            <RoadmapSection />
-            <FaqSection />
-            <CtaSection />
+            <ScrollReveal direction="up">
+              <PipelineSection />
+            </ScrollReveal>
+
+            <ScrollTextReveal text="Built for candidates who demand deterministic accuracy and high-impact career progression." />
+
+            <ScrollReveal direction="up">
+              <FeaturesSection />
+            </ScrollReveal>
+
+            <ScrollReveal direction="up">
+              <RoadmapSection />
+            </ScrollReveal>
+
+            <ScrollReveal direction="up">
+              <FaqSection />
+            </ScrollReveal>
+
+            <ScrollReveal direction="up">
+              <CtaSection />
+            </ScrollReveal>
           </main>
           <Footer />
         </div>
