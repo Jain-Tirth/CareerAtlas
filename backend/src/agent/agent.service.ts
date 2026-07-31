@@ -19,12 +19,16 @@ export class AgentService implements OnApplicationBootstrap {
     @InjectQueue('job-discovery') private readonly discoveryQueue: Queue,
   ) {}
 
-  async getPipelineStatus() {
+  async getPipelineStatus(runId?: string) {
+    if (runId) {
+      const run = await this.coordinator.getRun(runId);
+      if (run) return run.status;
+    }
     return await this.coordinator.getActiveRunStatus();
   }
 
   async onApplicationBootstrap() {
-    this.logger.log('[ORCHESTRATOR] Agent Bootstrapped. Syncing initial profile.json with database...');
+    this.logger.log('[ORCHESTRATOR] Agent Bootstrapped. Syncing initial profile with database if available...');
     try {
       const fileProfile = this.profileService.getProfile();
       if (fileProfile && fileProfile.email) {
@@ -37,7 +41,7 @@ export class AgentService implements OnApplicationBootstrap {
             ? 6 
             : fileProfile.experienceLevel.toLowerCase().includes('mid') 
               ? 3 
-              : 1, // Map string level to years
+              : 1,
           education: fileProfile.education || [],
           projects: [],
           achievements: [],
@@ -51,19 +55,57 @@ export class AgentService implements OnApplicationBootstrap {
         const saved = await this.profileService.saveProfileToDb(mappedProfile);
         this.activeUserId = saved.id || 1;
         this.logger.log(`[ORCHESTRATOR] Profile synchronized to DB successfully. Active User ID: ${this.activeUserId}`);
-      } else {
-        this.logger.warn('[ORCHESTRATOR] No active profile found in profile.json to sync. Waiting for resume upload.');
       }
-    } catch (err : any) {
-      this.logger.error(`[ORCHESTRATOR] Failed to sync profile.json to database on startup: ${err.message}`);
+    } catch (err: any) {
+      this.logger.warn(`[ORCHESTRATOR] Profile startup sync notice: ${err.message}`);
     }
   }
 
+  /**
+   * Synchronously initializes a new pipeline run registration and triggers async execution
+   */
+  async startWorkflowRun(
+    searchTerms: string[],
+    locationSearch: string,
+    locationPref: string,
+    isRemoteOpen: boolean,
+    userEmail?: string,
+    employmentTypes?: string[],
+  ): Promise<string> {
+    const runId = await this.db.getNextExecutionId();
+    
+    // Synchronously register run in coordinator before HTTP response
+    await this.coordinator.startRun(runId, this.activeUserId, searchTerms, locationSearch, 5);
+    await this.coordinator.updateStep(runId, 'step-1', 'running');
+    await this.coordinator.addLog(runId, 'Syncing profile details and user embedding with PostgreSQL / Supabase...');
+
+    // Asynchronously trigger execution suite
+    (async () => {
+      try {
+        await this.runWorkflowSuite(
+          runId,
+          searchTerms,
+          locationSearch,
+          locationPref,
+          isRemoteOpen,
+          userEmail,
+          employmentTypes,
+        );
+        this.logger.log(`[BACKGROUND AGENT] Finished workflow run ${runId}`);
+      } catch (err: any) {
+        this.logger.error(`[BACKGROUND AGENT] Run ${runId} failed: ${err.message}`, err.stack);
+        await this.coordinator.failRun(runId, String(err.message || err));
+      }
+    })();
+
+    return runId;
+  }
 
   /**
    * Main suite runner triggered in the background
    */
   async runWorkflowSuite(
+    runId: string,
     searchTerms: string[],
     locationSearch: string,
     locationPref: string,
@@ -71,14 +113,7 @@ export class AgentService implements OnApplicationBootstrap {
     userEmail?: string,
     employmentTypes?: string[],
   ) {
-    this.logger.log('[ORCHESTRATOR] Starting background job recommendation suite via BullMQ...');
-
-    const runId = await this.db.getNextExecutionId();
-    
-    // Start run registration in coordinator
-    await this.coordinator.startRun(runId, this.activeUserId, searchTerms, locationSearch, 5);
-    await this.coordinator.updateStep(runId, 'step-1', 'running');
-    await this.coordinator.addLog(runId, 'Syncing profile details and user embedding with PostgreSQL / Supabase...');
+    this.logger.log(`[ORCHESTRATOR] Executing job recommendation suite for run ID: ${runId}...`);
 
     let resolvedUserId = this.activeUserId;
     try {
