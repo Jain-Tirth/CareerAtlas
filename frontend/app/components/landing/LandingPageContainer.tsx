@@ -5,7 +5,6 @@ import { Navbar } from "./Navbar";
 import { HeroSection } from "./HeroSection";
 import { PipelineSection } from "./PipelineSection";
 import { FeaturesSection } from "./FeaturesSection";
-import { RoadmapSection } from "./RoadmapSection";
 import { FaqSection } from "./FaqSection";
 import { CtaSection } from "./CtaSection";
 import { Footer } from "./Footer";
@@ -49,20 +48,14 @@ export function LandingPageContainer() {
             <HeroSection />
 
             {/* Scroll-Driven Progressive Word Reveal */}
-            <ScrollTextReveal text="Autonomous AI matching across Qdrant vector spaces, anti-detect browser scraping, and zero recruiter noise." />
-
+            <ScrollTextReveal text="Built for candidates who demand jon-profile accuracy and high-impact career progression." />
+            
             <ScrollReveal direction="up">
               <PipelineSection />
             </ScrollReveal>
 
-            <ScrollTextReveal text="Built for candidates who demand deterministic accuracy and high-impact career progression." />
-
             <ScrollReveal direction="up">
               <FeaturesSection />
-            </ScrollReveal>
-
-            <ScrollReveal direction="up">
-              <RoadmapSection />
             </ScrollReveal>
 
             <ScrollReveal direction="up">

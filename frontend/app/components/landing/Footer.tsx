@@ -54,20 +54,6 @@ export function Footer() {
             </li>
           </ul>
         </div>
-
-        {/* Technical Architecture */}
-        <div className="space-y-3">
-          <span className="text-xs font-mono font-bold text-zinc-300 uppercase tracking-wider block">
-            Architecture
-          </span>
-          <ul className="space-y-2 text-xs">
-            <li className="text-zinc-500 font-mono">FastEmbed 384-dim Vector Search</li>
-            <li className="text-zinc-500 font-mono">NestJS + Temporal Workflows</li>
-            <li className="text-zinc-500 font-mono">Qdrant & pgvector DB</li>
-            <li className="text-zinc-500 font-mono">BullMQ Async Queue Suite</li>
-          </ul>
-        </div>
-
         {/* Legal & Trust */}
         <div className="space-y-3">
           <span className="text-xs font-mono font-bold text-zinc-300 uppercase tracking-wider block">
@@ -83,7 +69,7 @@ export function Footer() {
 
       <div className="max-w-6xl mx-auto px-6 mt-12 pt-8 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
         <div>© {new Date().getFullYear()} CareerAtlas Inc. All rights reserved.</div>
-        <div className="font-mono text-[11px]">Designed with engineering-first principles.</div>
+        <div className="font-mono text-[11px]">Designed for easy and matching job findings</div>
       </div>
     </footer>
   );

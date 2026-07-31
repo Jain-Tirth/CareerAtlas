@@ -133,7 +133,7 @@ export function PipelineSection() {
         </div>
 
         {/* Active Step Summary Box */}
-        <motion.div
+        {/* <motion.div
           layout
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
@@ -160,7 +160,7 @@ export function PipelineSection() {
             <span>Test Stage in App</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </a>
-        </motion.div>
+        </motion.div> */}
       </div>
     </section>
   );

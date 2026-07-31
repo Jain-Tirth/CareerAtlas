@@ -1,24 +1,39 @@
 "use client";
 
-import React from "react";
+import React, { useRef } from "react";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { Check, ArrowRight, Layers, Sliders, History, FileSearch, Sparkles, Kanban, Globe, FileCheck } from "lucide-react";
 
 export function FeaturesSection() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["0 0.95", "0.2 0.7"],
+  });
+
+  const headerOpacity = useTransform(scrollYProgress, [0, 0.2], [0.3, 1]);
+  const headerBlur = useTransform(scrollYProgress, [0, 0.2], ["blur(8px)", "blur(0px)"]);
+  const headerY = useTransform(scrollYProgress, [0, 0.2], [16, 0]);
+
   return (
-    <section id="features" className="py-24 bg-transparent space-y-28">
+    <section ref={sectionRef} id="features" className="py-24 bg-transparent space-y-28">
       <div className="max-w-6xl mx-auto px-6">
-        {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-20">
-          <span className="text-xs font-mono text-[#2563EB] tracking-wider uppercase font-semibold">
-            ENGINEERING CAPABILITIES
-          </span>
-          <h2 className="text-3xl md:text-5xl font-extrabold text-white tracking-tight mt-3 mb-4">
+        {/* Section Header with 50% Scroll Blur Reveal */}
+        <motion.div
+          style={{
+            opacity: headerOpacity,
+            filter: headerBlur,
+            y: headerY,
+          }}
+          className="text-center max-w-3xl mx-auto mb-20 transition-all duration-300"
+        >
+          <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight mt-3 mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-blue-400">
             Built for precision, not guesswork.
           </h2>
           <p className="text-zinc-400 text-base md:text-lg">
             Every feature is designed to replace broad job search noise with deterministic resume evaluation.
           </p>
-        </div>
+        </motion.div>
 
         {/* Feature 1: Resume Matching */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center mb-28">
