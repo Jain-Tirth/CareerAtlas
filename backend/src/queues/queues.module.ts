@@ -21,20 +21,15 @@ import { MatchingModule } from '../matching/matching.module';
     BullModule.forRootAsync({
       useFactory: () => {
         const redisUrl = process.env.REDIS_URL;
-        const redisCa = process.env.REDIS_CA;
-        const tlsConfig = redisCa ? { ca: [redisCa] } : undefined;
-
         if (redisUrl) {
           try {
             const parsed = new URL(redisUrl);
-            const isTls = parsed.protocol === 'rediss:';
             return {
               connection: {
                 host: parsed.hostname,
                 port: parsed.port ? parseInt(parsed.port, 10) : 6379,
                 username: parsed.username ? decodeURIComponent(parsed.username) : undefined,
                 password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
-                tls: isTls ? (tlsConfig || {}) : undefined,
               },
             };
           } catch (err) {
@@ -47,7 +42,6 @@ import { MatchingModule } from '../matching/matching.module';
             port: parseInt(process.env.REDIS_PORT || '6379', 10),
             password: process.env.REDIS_PASSWORD || undefined,
             username: process.env.REDIS_USERNAME || undefined,
-            tls: process.env.REDIS_TLS === 'true' ? (tlsConfig || {}) : undefined,
           },
         };
       },
