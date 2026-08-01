@@ -12,10 +12,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     // Connect using DATABASE_URL or individual variables
     const connectionString = process.env.DATABASE_URL;
     
-    // Automatically apply SSL options if connectionString, Supabase, or DB_SSL is present
-    const isSslRequired = 
-      !!connectionString ||
-      (process.env.DB_HOST && process.env.DB_HOST.includes('supabase')) ||
+    // Automatically apply SSL options for Supabase / Cloud PostgreSQL
+    const isSupabase = 
+      (connectionString && (connectionString.includes('supabase') || connectionString.includes('pooler') || connectionString.includes('sslmode=require'))) ||
+      (process.env.DB_HOST && (process.env.DB_HOST.includes('supabase') || process.env.DB_HOST.includes('pooler'))) ||
       process.env.DB_SSL === 'true';
 
     this.pool = new Pool({
@@ -27,8 +27,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       database: process.env.DB_NAME || 'careeratlas',
       max: 13,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
-      ssl: isSslRequired ? { rejectUnauthorized: true } : undefined,
+      connectionTimeoutMillis: 10000,
+      ssl: isSupabase ? { rejectUnauthorized: false } : undefined,
     });
 
     try {
