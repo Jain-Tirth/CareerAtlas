@@ -12,9 +12,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     // Connect using DATABASE_URL or individual variables
     const connectionString = process.env.DATABASE_URL;
     
-    // Automatically apply SSL options if Supabase is detected or requested
-    const isSupabase = 
-      (connectionString && (connectionString.includes('supabase') || connectionString.includes('sslmode=require'))) ||
+    // Automatically apply SSL options if connectionString, Supabase, or DB_SSL is present
+    const isSslRequired = 
+      !!connectionString ||
       (process.env.DB_HOST && process.env.DB_HOST.includes('supabase')) ||
       process.env.DB_SSL === 'true';
 
@@ -27,8 +27,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       database: process.env.DB_NAME || 'careeratlas',
       max: 13,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 3500,
-      ssl: isSupabase ? { rejectUnauthorized: false } : undefined,
+      connectionTimeoutMillis: 5000,
+      ssl: isSslRequired ? { rejectUnauthorized: false } : undefined,
     });
 
     try {
