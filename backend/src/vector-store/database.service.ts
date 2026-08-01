@@ -109,6 +109,21 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         );
       `);
 
+      // 3b. Create sessions table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS sessions (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          email VARCHAR(255) NOT NULL,
+          session_token VARCHAR(255) UNIQUE NOT NULL,
+          expires_at TIMESTAMP NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(session_token);
+        CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP;
+      `);
+
       // 4. Create results table for user-specific recommendations
       await client.query(`
         CREATE TABLE IF NOT EXISTS results (
@@ -159,6 +174,40 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       `);
       await client.query(`
         CREATE INDEX IF NOT EXISTS idx_user_skills_user ON user_skills(user_id);
+      `);
+
+      // 7. Create resume versions table for multi-version management
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS resume_versions (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          version_name VARCHAR(255) NOT NULL,
+          is_active BOOLEAN DEFAULT false,
+          raw_text TEXT,
+          parsed_data JSONB NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT unique_user_version_name UNIQUE (user_id, version_name)
+        );
+      `);
+
+      await client.query(`
+        CREATE INDEX IF NOT EXISTS idx_resume_versions_user ON resume_versions(user_id);
+      `);
+
+      // 8. Create agent search sessions table for persistent search history
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS agent_search_sessions (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          version_id INTEGER REFERENCES resume_versions(id) ON DELETE CASCADE,
+          search_title VARCHAR(255) NOT NULL,
+          location_pref VARCHAR(255) NOT NULL,
+          job_count INTEGER DEFAULT 0,
+          run_id VARCHAR(255),
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_search_sessions_user ON agent_search_sessions(user_id, version_id);
       `);
 
       await client.query('COMMIT');

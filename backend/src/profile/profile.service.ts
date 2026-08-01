@@ -18,6 +18,7 @@ export interface UserProfile {
   projects: string[];
   achievements: string[];
   preferredRoles: string[];
+  suggestedTitles?: string[];
   preferences: {
     locations: string[];
     remote: boolean;
@@ -88,9 +89,9 @@ export class ProfileService {
     });
   }
 
-  async runBackgroundParse(taskId: string, pdfBuffer: Buffer): Promise<void> {
+  async runBackgroundParse(taskId: string, pdfBuffer: Buffer, originalFilename?: string, customVersionName?: string, targetUserEmail?: string): Promise<void> {
     try {
-      const profile = await this.parseResumePdf(pdfBuffer, taskId);
+      const profile = await this.parseResumePdf(pdfBuffer, taskId, originalFilename, customVersionName, targetUserEmail);
       this.emitTaskEvent(taskId, 'success', 'Profile parsing and vector indexing completed!', undefined, profile);
     } catch (err) {
       this.emitTaskEvent(taskId, 'error', `Parsing failed: ${err.message}`, err.message);
@@ -285,7 +286,7 @@ export class ProfileService {
     return cleaned;
   }
 
-  async parseResumePdf(pdfBuffer: Buffer, taskId?: string): Promise<UserProfile> {
+  async parseResumePdf(pdfBuffer: Buffer, taskId?: string, originalFilename?: string, customVersionName?: string, targetUserEmail?: string): Promise<UserProfile> {
     this.emitTaskEvent(taskId, 'running', 'Extracting character streams from PDF resume...');
     this.logger.log('[PROFILE] Extracting text from PDF resume...');
     let pdfText = '';
@@ -360,21 +361,52 @@ Rules:Return ONLY raw JSON. No markdown or explanations.Never use example values
         throw err;
       }
 
-      // Format parsed results safely
+      // Format parsed results safely without converting objects to [object Object]
+      const formatItem = (v: any): string => {
+        if (typeof v === 'string') return v.trim();
+        if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+        if (v && typeof v === 'object') {
+          const parts: string[] = [];
+          if (v.degree || v.title || v.name || v.role) {
+            parts.push(v.degree || v.title || v.name || v.role);
+          }
+          if (v.institution || v.university || v.school || v.company) {
+            parts.push(v.institution || v.university || v.school || v.company);
+          }
+          if (v.year || v.duration || v.date) {
+            parts.push(`(${v.year || v.duration || v.date})`);
+          }
+          if (v.description || v.summary || v.details) {
+            parts.push(`- ${v.description || v.summary || v.details}`);
+          }
+          if (v.techStack && Array.isArray(v.techStack)) {
+            parts.push(`[Stack: ${v.techStack.join(', ')}]`);
+          }
+          if (parts.length > 0) return parts.join(' ');
+          try {
+            return JSON.stringify(v);
+          } catch {
+            return String(v);
+          }
+        }
+        return '';
+      };
+
       const parseArray = (val: any): string[] => {
-        if (Array.isArray(val)) return val.map(v => String(v).trim()).filter(Boolean);
+        if (Array.isArray(val)) return val.map(v => formatItem(v)).filter(Boolean);
         if (typeof val === 'string') {
           try {
             const parsed = JSON.parse(val);
-            if (Array.isArray(parsed)) return parsed.map(v => String(v).trim()).filter(Boolean);
+            if (Array.isArray(parsed)) return parsed.map(v => formatItem(v)).filter(Boolean);
           } catch {}
           return val.split(',').map(s => s.trim()).filter(Boolean);
         }
         return [];
       };
 
-      const emailLower = String(parsedResult.email || '').trim().toLowerCase();
-      const existingProfile = await this.getProfileByEmail(emailLower);
+      const pdfExtractedEmail = String(parsedResult.email || '').trim().toLowerCase();
+      const emailLower = (targetUserEmail || pdfExtractedEmail || '').trim().toLowerCase();
+      const existingProfile = emailLower ? await this.getProfileByEmail(emailLower) : null;
       console.log(`
 [TRACE] before_resume_upload:
 canonical_role: ${existingProfile ? JSON.stringify(existingProfile.preferredRoles) : 'None'}
@@ -383,6 +415,24 @@ canonical_role: ${existingProfile ? JSON.stringify(existingProfile.preferredRole
       const skills = typeof parsedResult.skills === 'string'
         ? parsedResult.skills.split(',').map(s => s.trim()).filter(Boolean)
         : parseArray(parsedResult.skills);
+
+      let preferredRoles = parseArray(parsedResult.preferredRoles);
+      if (preferredRoles.length === 0 && parsedResult.targetRole) {
+        preferredRoles = [String(parsedResult.targetRole).trim()];
+      }
+      if (preferredRoles.length === 0 && skills.length > 0) {
+        const skillStr = skills.join(' ').toLowerCase();
+        if (skillStr.includes('react') || skillStr.includes('javascript') || skillStr.includes('typescript') || skillStr.includes('frontend')) {
+          preferredRoles = ['Software Engineer', 'Frontend Developer', 'Full Stack Engineer'];
+        } else if (skillStr.includes('python') || skillStr.includes('c++') || skillStr.includes('java') || skillStr.includes('node')) {
+          preferredRoles = ['Software Engineer', 'Backend Engineer', 'Systems Engineer'];
+        } else {
+          preferredRoles = ['Software Engineer'];
+        }
+      }
+      if (preferredRoles.length === 0) {
+        preferredRoles = ['Software Engineer'];
+      }
 
       const profile: UserProfile = {
         fullName: String(parsedResult.fullName || '').trim(),
@@ -393,7 +443,7 @@ canonical_role: ${existingProfile ? JSON.stringify(existingProfile.preferredRole
         education: parseArray(parsedResult.education),
         projects: parseArray(parsedResult.projects),
         achievements: parseArray(parsedResult.achievements),
-        preferredRoles: parseArray(parsedResult.preferredRoles),
+        preferredRoles,
         preferences: {
           locations: [],
           remote: true,
@@ -405,6 +455,12 @@ canonical_role: ${existingProfile ? JSON.stringify(existingProfile.preferredRole
       this.emitTaskEvent(taskId, 'running', 'Saving structured user profile and preferences to database...');
       const savedProfile = await this.saveProfileToDb(profile, taskId);
       
+      // Save version to resume_versions table
+      if (savedProfile.id) {
+        const requestedName = customVersionName || originalFilename || 'Resume.pdf';
+        await this.saveResumeVersion(savedProfile.id, requestedName, savedProfile, pdfText, true);
+      }
+
       console.log(`
 [TRACE] after_resume_upload:
 canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
@@ -481,6 +537,7 @@ canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
       this.emitTaskEvent(taskId, 'running', 'Generating 384-dimensional vector embedding for candidate profile...');
       this.logger.log('[PROFILE] Generating User Embedding...');
       const embedding = await this.embeddingsService.generateEmbedding(textToEmbed);
+      (profile as any).embedding = embedding;
 
       // 6. Save embedding to Qdrant vector database
       this.emitTaskEvent(taskId, 'running', 'Indexing user embedding into Qdrant vector database...');
@@ -575,50 +632,272 @@ canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
       return [];
     }
 
+    // Optimization: Return cached title suggestions from DB cache instantly (< 1ms) without calling LLM
+    if (profile.suggestedTitles && Array.isArray(profile.suggestedTitles) && profile.suggestedTitles.length > 0) {
+      this.logger.log(`[PROFILE] Returning ${profile.suggestedTitles.length} cached title suggestions from DB cache (Instant).`);
+      return profile.suggestedTitles;
+    }
+
     const activeProfile = profile;
     this.logger.log(`[PROFILE] Generating title suggestions for role: "${activeProfile.preferredRoles.join(', ')}"...`);
 
-    const prompt = PromptTemplate.fromTemplate(`
-      You are an elite career advisor. Based on the candidate's preferences below, suggest a JSON array of 5 to 10 standard, widely-recognized job title search terms to query job boards.
-      Focus on generating a broad recall of titles that match their skills, preferred roles, and projects.
-      Include:
-      - Direct synonyms and spelling variants (e.g. "Full Stack Developer", "Fullstack Engineer")
-      - Technology/framework-specific titles based on their core skills (e.g. "React Developer", "Node.js Developer", "Python Engineer")
-      - Inferred roles from projects (e.g. "Distributed Systems Engineer", "API Engineer")
-      - Seniority variants based on their experience years (e.g. "Senior Software Engineer" or "Lead Engineer" if they have 5+ years of experience, or "Software Engineer" otherwise)
-      - Standard abbreviations (e.g. "SDE", "SWE")
-      
-      Candidate Profile:
-      - Preferred Roles: {preferredRoles}
-      - Skills: {skills}
-      - Experience Years: {experienceYears}
-      
-      Respond ONLY with a JSON array of strings containing 5 to 10 suggested job titles.
-      Do not include any conversational filler, markdown code blocks, or schema definitions. Just return the valid JSON array of strings.
-    `);
+    // Instant non-LLM title generator from skills & preferred roles
+    const suggestionsSet = new Set<string>();
+    activeProfile.preferredRoles.forEach(r => suggestionsSet.add(r));
 
-    const formattedPrompt = await prompt.format({
-      preferredRoles: activeProfile.preferredRoles.join(', '),
-      skills: activeProfile.skills.join(', '),
-      experienceYears: activeProfile.experienceYears,
-    });
+    const skillStr = (activeProfile.skills || []).join(' ').toLowerCase();
+    if (skillStr.includes('react') || skillStr.includes('javascript') || skillStr.includes('frontend')) {
+      suggestionsSet.add('Frontend Developer');
+      suggestionsSet.add('Full Stack Engineer');
+    }
+    if (skillStr.includes('python') || skillStr.includes('c++') || skillStr.includes('java') || skillStr.includes('node')) {
+      suggestionsSet.add('Backend Engineer');
+      suggestionsSet.add('Software Engineer');
+      suggestionsSet.add('Systems Engineer');
+    }
+    if (activeProfile.experienceYears >= 5) {
+      suggestionsSet.add('Senior Software Engineer');
+    } else {
+      suggestionsSet.add('SDE');
+      suggestionsSet.add('Software Engineer');
+    }
 
+    const suggestions = Array.from(suggestionsSet);
+    activeProfile.suggestedTitles = suggestions;
+    return suggestions;
+  }
+
+  async getUniqueVersionName(userId: number, requestedName: string): Promise<string> {
+    let name = requestedName.trim();
+    if (!name) name = 'Resume.pdf';
+
+    const existingRes = await this.db.query(
+      'SELECT version_name FROM resume_versions WHERE user_id = $1',
+      [userId]
+    );
+    const existingNames = new Set(existingRes.rows.map(r => r.version_name.toLowerCase()));
+
+    if (!existingNames.has(name.toLowerCase())) {
+      return name;
+    }
+
+    const lastDot = name.lastIndexOf('.');
+    let baseName = name;
+    let ext = '';
+    if (lastDot > 0) {
+      baseName = name.substring(0, lastDot);
+      ext = name.substring(lastDot);
+    }
+
+    let count = 1;
+    let candidate = `${baseName} (${count})${ext}`;
+    while (existingNames.has(candidate.toLowerCase())) {
+      count++;
+      candidate = `${baseName} (${count})${ext}`;
+    }
+
+    return candidate;
+  }
+
+  async saveResumeVersion(
+    userId: number,
+    versionName: string,
+    profile: UserProfile,
+    rawText?: string,
+    makeActive: boolean = true
+  ): Promise<any> {
+    const client = await this.db.getPool().connect();
     try {
-      const responseText = await this.invokeModelWithFallback(formattedPrompt, 'general');
-      const cleanedResponse = this.cleanJsonText(responseText);
-      const parsed = JSON.parse(cleanedResponse);
-      let suggestions: string[] = [];
-      if (Array.isArray(parsed)) {
-        suggestions = parsed.map(t => String(t).trim()).filter(Boolean);
-      } else {
-        suggestions = activeProfile.preferredRoles;
+      await client.query('BEGIN');
+
+      if (makeActive) {
+        await client.query('UPDATE resume_versions SET is_active = false WHERE user_id = $1', [userId]);
       }
-      console.log(`[TRACE] after_suggestions: canonical_role: ${JSON.stringify(activeProfile.preferredRoles)} suggestions: ${JSON.stringify(suggestions)}`);
-      return suggestions;
-    } catch (e) {
-      this.logger.error(`[PROFILE] Failed to suggest titles: ${e.message}`);
-      console.log(`[TRACE] after_suggestions:canonical_role: ${JSON.stringify(activeProfile.preferredRoles)}suggestions: ${JSON.stringify(activeProfile.preferredRoles)}`);
-      return activeProfile.preferredRoles;
+
+      const finalVersionName = await this.getUniqueVersionName(userId, versionName);
+
+      const res = await client.query(`
+        INSERT INTO resume_versions (user_id, version_name, is_active, raw_text, parsed_data)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING *;
+      `, [userId, finalVersionName, makeActive, rawText || '', JSON.stringify(profile)]);
+
+      await client.query('COMMIT');
+      return res.rows[0];
+    } catch (err) {
+      await client.query('ROLLBACK');
+      this.logger.error(`[PROFILE: VERSION] Failed to save resume version: ${err.message}`);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async getUserVersions(userId: number): Promise<any[]> {
+    try {
+      const res = await this.db.query(
+        'SELECT id, version_name as "versionName", is_active as "isActive", created_at as "createdAt", updated_at as "updatedAt", parsed_data as "parsedData" FROM resume_versions WHERE user_id = $1 ORDER BY is_active DESC, created_at DESC',
+        [userId]
+      );
+      return res.rows;
+    } catch (err) {
+      this.logger.error(`[PROFILE: VERSION] Failed to list resume versions: ${err.message}`);
+      return [];
+    }
+  }
+
+  async activateResumeVersion(userId: number, versionId: number): Promise<UserProfile | null> {
+    const client = await this.db.getPool().connect();
+    try {
+      await client.query('BEGIN');
+
+      await client.query('UPDATE resume_versions SET is_active = false WHERE user_id = $1', [userId]);
+      const res = await client.query(
+        'UPDATE resume_versions SET is_active = true, updated_at = NOW() WHERE id = $1 AND user_id = $2 RETURNING parsed_data',
+        [versionId, userId]
+      );
+
+      await client.query('COMMIT');
+
+      if (res.rows.length === 0) return null;
+
+      const profile: UserProfile & { embedding?: number[] } = res.rows[0].parsed_data;
+      profile.id = userId;
+
+      // Optimization: Reuse stored pre-computed vector embedding if available
+      if (profile.embedding && Array.isArray(profile.embedding) && profile.embedding.length > 0) {
+        this.logger.log(`[PROFILE: VERSION] Reusing pre-computed 384-dimensional vector embedding for version ${versionId} (Instant switch).`);
+        await this.syncProfilePreferencesAndVector(userId, profile, profile.embedding);
+      } else {
+        await this.saveProfileToDb(profile);
+      }
+
+      return profile;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      this.logger.error(`[PROFILE: VERSION] Failed to activate version: ${err.message}`);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async syncProfilePreferencesAndVector(userId: number, profile: UserProfile, embedding: number[]) {
+    const client = await this.db.getPool().connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM user_preferences WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM user_skills WHERE user_id = $1', [userId]);
+
+      await client.query(`
+        INSERT INTO user_preferences (user_id, preferred_roles, locations, remote, employment_types, experience_years, education, projects, achievements)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `, [
+        userId,
+        profile.preferredRoles,
+        profile.preferences?.locations || [],
+        profile.preferences?.remote ?? true,
+        profile.preferences?.employmentTypes || ['Full-time'],
+        parseFloat(Number(profile.experienceYears || 0).toFixed(1)),
+        profile.education || [],
+        profile.projects || [],
+        profile.achievements || []
+      ]);
+
+      for (const rawSkill of profile.skills) {
+        const skill = String(rawSkill || '').trim().substring(0, 255);
+        if (!skill) continue;
+        await client.query(`
+          INSERT INTO user_skills (user_id, skill)
+          VALUES ($1, $2)
+          ON CONFLICT DO NOTHING
+        `, [userId, skill]);
+      }
+
+      await client.query('COMMIT');
+
+      await this.qdrantService.getClient().upsert('user_embeddings', {
+        wait: true,
+        points: [
+          {
+            id: QdrantService.stringToUuid(userId.toString()),
+            vector: embedding,
+            payload: {
+              fullName: profile.fullName,
+              email: profile.email,
+              experienceYears: profile.experienceYears,
+              skills: profile.skills,
+              preferredRoles: profile.preferredRoles,
+            }
+          }
+        ]
+      });
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+      this.logger.error(`[PROFILE] Failed syncing cached vector: ${err.message}`);
+    } finally {
+      client.release();
+    }
+  }
+
+  async renameResumeVersion(userId: number, versionId: number, newName: string): Promise<boolean> {
+    try {
+      const uniqueName = await this.getUniqueVersionName(userId, newName);
+      const res = await this.db.query(
+        'UPDATE resume_versions SET version_name = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3',
+        [uniqueName, versionId, userId]
+      );
+      return (res.rowCount ?? 0) > 0;
+    } catch (err) {
+      this.logger.error(`[PROFILE: VERSION] Failed to rename version: ${err.message}`);
+      return false;
+    }
+  }
+
+  async deleteResumeVersion(userId: number, versionId: number): Promise<boolean> {
+    const client = await this.db.getPool().connect();
+    try {
+      await client.query('BEGIN');
+
+      const checkRes = await client.query(
+        'SELECT is_active FROM resume_versions WHERE id = $1 AND user_id = $2',
+        [versionId, userId]
+      );
+
+      if (checkRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return false;
+      }
+
+      const wasActive = checkRes.rows[0].is_active;
+
+      await client.query('DELETE FROM resume_versions WHERE id = $1 AND user_id = $2', [versionId, userId]);
+
+      if (wasActive) {
+        const remaining = await client.query(
+          'SELECT id FROM resume_versions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
+          [userId]
+        );
+        if (remaining.rows.length > 0) {
+          const nextActiveId = remaining.rows[0].id;
+          await client.query('UPDATE resume_versions SET is_active = true WHERE id = $1', [nextActiveId]);
+        }
+      }
+
+      await client.query('COMMIT');
+
+      const remainingProfile = await this.getProfileById(userId);
+      if (remainingProfile && wasActive) {
+        await this.saveProfileToDb(remainingProfile);
+      }
+
+      return true;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      this.logger.error(`[PROFILE: VERSION] Failed to delete version: ${err.message}`);
+      return false;
+    } finally {
+      client.release();
     }
   }
 }

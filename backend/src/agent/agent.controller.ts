@@ -18,8 +18,8 @@ export class AgentController {
   ) {}
 
   @Get('agent/status')
-  async getAgentStatus() {
-    return await this.agentService.getPipelineStatus();
+  async getAgentStatus(@Query('runId') runId?: string) {
+    return await this.agentService.getPipelineStatus(runId);
   }
 
   @Get('agent/results')
@@ -27,10 +27,27 @@ export class AgentController {
     return this.agentService.getWorkflowResults(email);
   }
 
+  @Get('agent/history')
+  async getSearchHistory(
+    @Query('email') email?: string,
+    @Query('versionId') versionId?: string,
+  ) {
+    const vId = versionId ? parseInt(versionId, 10) : undefined;
+    return this.agentService.getSearchHistory(email, vId);
+  }
+
+  @Get('agent/history/:sessionId')
+  async getSessionResults(
+    @Query('sessionId') sessionId: string,
+    @Query('email') email?: string,
+  ) {
+    return this.agentService.getSessionResults(parseInt(sessionId, 10), email);
+  }
+
   // Trigger the job search scraper workflow in the background
   @Post('agent/run')
   @HttpCode(HttpStatus.ACCEPTED)
-  async runAgent(@Body() body: StartWorkflowDto): Promise<{ message: string; searchTerms: string[] }> {
+  async runAgent(@Body() body: StartWorkflowDto): Promise<{ message: string; runId: string; searchTerms: string[] }> {
     if (!body.searchTerms || !Array.isArray(body.searchTerms) || body.searchTerms.length === 0) {
       throw new Error('At least one search title must be specified.');
     }
@@ -50,25 +67,18 @@ export class AgentController {
 
     this.logger.log(`[API] Triggering workflow asynchronously for: ${JSON.stringify(searchTerms)} in ${locationSearch} for user: ${userEmail || 'default'}`);
 
-    // Trigger run in the background via runWorkflowSuite
-    (async () => {
-      try {
-        await this.agentService.runWorkflowSuite(
-          searchTerms,
-          locationSearch,
-          locationPref,
-          isRemoteOpen,
-          userEmail,
-          employmentTypes,
-        );
-        this.logger.log('[BACKGROUND AGENT] Finished all run cycles.');
-      } catch (err) {
-        this.logger.error('[BACKGROUND AGENT] Run failed', err);
-      }
-    })();
+    const runId = await this.agentService.startWorkflowRun(
+      searchTerms,
+      locationSearch,
+      locationPref,
+      isRemoteOpen,
+      userEmail,
+      employmentTypes,
+    );
 
     return {
       message: 'Job search workflow triggered in the background.',
+      runId,
       searchTerms,
     };
   }
