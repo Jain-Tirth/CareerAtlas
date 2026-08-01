@@ -11,21 +11,15 @@ export class MemoryService implements OnModuleInit, OnModuleDestroy {
     this.logger.log('[MEMORY] Connecting to Redis for job state cache...');
     try {
       const redisUrl = process.env.REDIS_URL;
-      const redisCa = process.env.REDIS_CA;
-      const tlsConfig = redisCa ? { ca: [redisCa] } : undefined;
 
       if (redisUrl) {
-        const isTls = redisUrl.startsWith('rediss://');
-        this.redis = new Redis(redisUrl, {
-          tls: isTls ? (tlsConfig || {}) : undefined,
-        });
+        this.redis = new Redis(redisUrl);
       } else {
         this.redis = new Redis({
-          host: process.env.REDIS_HOST || 'localhost',
-          port: parseInt(process.env.REDIS_PORT || '6379', 10),
-          password: process.env.REDIS_PASSWORD || undefined,
-          username: process.env.REDIS_USERNAME || undefined,
-          tls: process.env.REDIS_TLS === 'true' ? (tlsConfig || {}) : undefined,
+          host: process.env.REDIS_HOST,
+          port: Number(process.env.REDIS_PORT),
+          password: process.env.REDIS_PASSWORD,
+          username: process.env.REDIS_USERNAME,
         });
       }
 
