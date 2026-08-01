@@ -41,7 +41,7 @@ export class MailService {
     ].join('\r\n');
 
     return new Promise((resolve) => {
-      const client = tls.connect({ host: 'smtp.gmail.com', port: 465, rejectUnauthorized: false }, () => {
+      const client = tls.connect({ host: 'smtp.gmail.com', port: 465 }, () => {
         // Connected securely to Google SMTP
       });
 
