@@ -6,22 +6,20 @@ export class EmbeddingsService implements OnModuleInit {
   private extractor: any = null;
 
   async onModuleInit() {
-    this.logger.log('[EMBEDDINGS] Initializing embedding model via fastembed (BGE Small)...');
+    this.logger.log('[EMBEDDINGS] Initializing embedding model via @xenova/transformers (BAAI/bge-small-en-v1.5)...');
     try {
-      const { FlagEmbedding, EmbeddingModel } = await import('fastembed');
-      this.extractor = await FlagEmbedding.init({
-        model: EmbeddingModel.BGESmallENV15
-      });
-      this.logger.log('[EMBEDDINGS] fastembed model loaded successfully.');
+      const { pipeline } = await import('@xenova/transformers');
+      this.extractor = await pipeline('feature-extraction', 'Xenova/bge-small-en-v1.5');
+      this.logger.log('[EMBEDDINGS] bge-small-en-v1.5 model loaded successfully.');
     } catch (err: any) {
       this.logger.warn(
-        `[EMBEDDINGS] Failed to load fastembed model: ${err.message}. Using deterministic vector fallback.`
+        `[EMBEDDINGS] Failed to load bge-small-en-v1.5 model: ${err.message}. Using deterministic vector fallback.`
       );
     }
   }
 
   /**
-   * Generates a 384-dimensional embedding vector for the given text.
+   * Generates a 384-dimensional embedding vector for the given text using BAAI/bge-small-en-v1.5.
    */
   async generateEmbedding(text: string): Promise<number[]> {
     const embedStart = Date.now();
@@ -31,20 +29,21 @@ export class EmbeddingsService implements OnModuleInit {
 
     if (this.extractor) {
       try {
-        const embeddings = this.extractor.embed([text]);
-        for await (const batch of embeddings) {
-          if (batch && batch.length > 0) {
+        const output = await this.extractor(text, { pooling: 'mean', normalize: true });
+        if (output && output.data) {
+          const vector = Array.from(output.data) as number[];
+          if (vector.length === 384) {
             const genMs = Date.now() - embedStart;
-            this.logger.log(`[LATENCY] [embeddings] Fastembed vector generation completed in ${genMs}ms`);
-            return Array.from(batch[0]) as number[];
+            this.logger.log(`[LATENCY] [embeddings] bge-small-en-v1.5 vector generation completed in ${genMs}ms`);
+            return vector;
           }
         }
       } catch (err: any) {
-        this.logger.error(`[EMBEDDINGS] fastembed embedding generation failed: ${err.message}`);
+        this.logger.error(`[EMBEDDINGS] bge-small-en-v1.5 embedding generation failed: ${err.message}`);
       }
     }
 
-    this.logger.warn(`[EMBEDDINGS] Fastembed unavailable or failed. Generating deterministic 384-dim vector.`);
+    this.logger.warn(`[EMBEDDINGS] Model unavailable or failed. Generating deterministic 384-dim vector.`);
     const fallbackVector = this.generateDeterministicVector(text, 384);
     const genMs = Date.now() - embedStart;
     this.logger.log(`[LATENCY] [embeddings] Deterministic fallback vector generation completed in ${genMs}ms`);
