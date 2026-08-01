@@ -11,3 +11,5 @@ career-watcher
 # Superpower docs
 /.superpowers/*
 .agent/*
+deployment_plan.md
+careeratlas-key.pem
