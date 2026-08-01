@@ -11,19 +11,30 @@ export class MemoryService implements OnModuleInit, OnModuleDestroy {
     this.logger.log('[MEMORY] Connecting to Redis for job state cache...');
     try {
       const redisUrl = process.env.REDIS_URL;
+      const redisCa = process.env.REDIS_CA;
+      const tlsConfig = redisCa ? { ca: [redisCa] } : undefined;
+
       if (redisUrl) {
-        this.redis = new Redis(redisUrl);
+        const isTls = redisUrl.startsWith('rediss://');
+        this.redis = new Redis(redisUrl, {
+          tls: isTls ? (tlsConfig || {}) : undefined,
+        });
       } else {
         this.redis = new Redis({
           host: process.env.REDIS_HOST || 'localhost',
           port: parseInt(process.env.REDIS_PORT || '6379', 10),
           password: process.env.REDIS_PASSWORD || undefined,
           username: process.env.REDIS_USERNAME || undefined,
-          tls: process.env.REDIS_TLS === 'true' ? {} : undefined,
+          tls: process.env.REDIS_TLS === 'true' ? (tlsConfig || {}) : undefined,
         });
       }
+
+      this.redis.on('error', (err: any) => {
+        this.logger.error(`[MEMORY] Redis connection error: ${err.message}`);
+      });
+
       this.logger.log('[MEMORY] Connected to Redis successfully.');
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error(`[MEMORY] Failed to connect to Redis: ${err.message}`);
     }
   }
