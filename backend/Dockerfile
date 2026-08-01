@@ -1,17 +1,19 @@
-# Production Multi-Stage Dockerfile for NestJS Backend
-FROM node:22-alpine AS builder
+# Efficient Production Dockerfile for NestJS Backend on AWS EC2
+FROM node:22-slim
 WORKDIR /app
+
+# Step 1: Install dependencies (runs npm ci ONCE)
 COPY package*.json ./
 RUN npm ci
+
+# Step 2: Copy source code and build NestJS via SWC compiler
 COPY . .
 RUN npm run build
 
-FROM node:22-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-COPY package*.json ./
-RUN npm ci --only=production
-COPY --from=builder /app/dist ./dist
+# Step 3: Remove devDependencies for production runtime
+RUN npm prune --production
 
+ENV NODE_ENV=production
 EXPOSE 3001
+
 CMD ["node", "dist/main.js"]
