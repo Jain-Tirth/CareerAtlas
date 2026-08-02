@@ -1,0 +1,48 @@
+name: Continuous Deployment (AWS EC2 Coolify + Vercel)
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  deploy-backend:
+    name: Deploy Backend to AWS EC2 via Coolify Webhook
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Coolify Deployment Webhook
+        env:
+          COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
+        run: |
+          if [ -z "$COOLIFY_WEBHOOK_URL" ]; then
+            echo "::error::COOLIFY_WEBHOOK_URL secret is not set in GitHub repository secrets."
+            exit 1
+          fi
+          echo "Triggering Coolify deployment for supersparton/CareerAtlas:main on AWS EC2..."
+          curl -fsSL -X POST "$COOLIFY_WEBHOOK_URL" || curl -fsSL -X GET "$COOLIFY_WEBHOOK_URL"
+          echo "Coolify build deployment successfully triggered."
+
+  deploy-frontend:
+    name: Deploy Frontend to Vercel CDN
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+
+      - name: Deploy Frontend to Vercel Production
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: "--prod"
+          working-directory: ./frontend
