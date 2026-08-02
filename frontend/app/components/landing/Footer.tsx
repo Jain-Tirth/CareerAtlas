@@ -17,13 +17,8 @@ export function Footer() {
           </Link>
 
           <p className="text-xs text-zinc-500 leading-relaxed">
-            Autonomous job discovery and resume matching engine for software engineers and product professionals.
+            Autonomous job discovery and resume matching engine for software engineers.
           </p>
-
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#111827]/80 backdrop-blur-md border border-white/10 text-[11px] text-zinc-300">
-            <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
-            <span>All Systems Operational</span>
-          </div>
         </div>
 
         {/* Product Links */}
@@ -42,11 +37,7 @@ export function Footer() {
                 Matching Engine
               </a>
             </li>
-            <li>
-              <a href="#roadmap" className="hover:text-white transition-colors">
-                Roadmap
-              </a>
-            </li>
+  
             <li>
               <Link href="/dashboard" className="hover:text-white transition-colors">
                 Launch App

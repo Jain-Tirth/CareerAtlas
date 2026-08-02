@@ -53,12 +53,6 @@ export function Navbar() {
             Features
           </a>
           <a
-            href="#roadmap"
-            className="hover:text-white transition-colors duration-200"
-          >
-            Roadmap
-          </a>
-          <a
             href="#faq"
             className="hover:text-white transition-colors duration-200"
           >
