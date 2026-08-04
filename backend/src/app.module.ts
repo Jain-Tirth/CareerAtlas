@@ -6,6 +6,7 @@ import { LlmGatewayModule } from './llm-gateway/llm-gateway.module';
 import { QueuesModule } from './queues/queues.module';
 import { AuthModule } from './auth/auth.module';
 import { CryptoModule } from './crypto/crypto.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -17,5 +18,6 @@ import { CryptoModule } from './crypto/crypto.module';
     AuthModule,
     CryptoModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}
