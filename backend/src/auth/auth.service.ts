@@ -18,7 +18,8 @@ export class AuthService {
     return this.memoryService.getRedisClient();
   }
 
-  private normalizeEmail(email: string): string {
+  private normalizeEmail(email?: string): string {
+    if (!email || typeof email !== 'string') return '';
     return email.toLowerCase().trim();
   }
 
@@ -72,7 +73,7 @@ export class AuthService {
     };
   }
 
-  async verifyOtp(rawEmail: string, submittedOtp: string): Promise<{ success: boolean; message: string; user: any; token: string }> {
+  async verifyOtp(rawEmail: string, submittedOtp: string): Promise<{ success: boolean; message: string; user: any; token: string; isFirstTime?: boolean; expiresAt?: string }> {
     const email = this.normalizeEmail(rawEmail);
     const cleanOtp = submittedOtp ? submittedOtp.trim() : '';
 

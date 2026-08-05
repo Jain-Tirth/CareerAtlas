@@ -9,14 +9,14 @@ async function bootstrap() {
 
   // Enable CORS for Vercel, local frontend, and cross-origin authentication
   app.enableCors({
-    origin: true,
+    origin: ['http://localhost:3000', 'https://career-atlas-cyan.vercel.app'],
     credentials: true,
   });
 
-  // Enable global DTO validation pipe
+  // Enable global DTO validation pipe (whitelist: false ensures non-annotated DTO properties are preserved)
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,
+      whitelist: false,
       transform: true,
     }),
   );
