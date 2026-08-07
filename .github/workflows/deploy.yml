@@ -18,8 +18,16 @@ jobs:
             exit 1
           fi
           echo "Triggering Coolify deployment for supersparton/CareerAtlas:main on AWS EC2..."
-          # Pass -k / --insecure to allow HTTP/HTTPS IP address webhooks without SSL SNI errors
-          curl -k -fsSL -X POST "$COOLIFY_WEBHOOK_URL" || curl -k -fsSL -X GET "$COOLIFY_WEBHOOK_URL"
+          
+          # Convert https:// to http:// if webhook points to an IP/port without SSL
+          HTTP_URL=$(echo "$COOLIFY_WEBHOOK_URL" | sed 's/https:\/\//http:\/\//g')
+          
+          curl -k -s -X POST "$COOLIFY_WEBHOOK_URL" || \
+          curl -k -s -X GET "$COOLIFY_WEBHOOK_URL" || \
+          curl -s -X POST "$HTTP_URL" || \
+          curl -s -X GET "$HTTP_URL"
+          
+          echo ""
           echo "Coolify deployment webhook successfully triggered!"
 
   deploy-frontend:
