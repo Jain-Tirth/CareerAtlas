@@ -1,4 +1,4 @@
-name: Continuous Deployment (AWS EC2 Coolify + Vercel)
+name: Continuous Deployment (AWS EC2 Coolify)
 
 on:
   push:
@@ -29,31 +29,3 @@ jobs:
           
           echo ""
           echo "Coolify deployment webhook successfully triggered!"
-
-  deploy-frontend:
-    name: Deploy Frontend to Vercel CDN
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js 20.x
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20.x"
-
-      - name: Deploy Frontend to Vercel
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          if [ -z "$VERCEL_TOKEN" ]; then
-            echo "::error::VERCEL_TOKEN secret is not set in GitHub repository secrets."
-            exit 1
-          fi
-          cd frontend
-          npx vercel pull --yes --environment=production --token=$VERCEL_TOKEN
-          npx vercel build --prod --token=$VERCEL_TOKEN
-          npx vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
-          echo "Frontend successfully deployed to Vercel Production!"
