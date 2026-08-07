@@ -18,8 +18,9 @@ jobs:
             exit 1
           fi
           echo "Triggering Coolify deployment for supersparton/CareerAtlas:main on AWS EC2..."
-          curl -fsSL -X POST "$COOLIFY_WEBHOOK_URL" || curl -fsSL -X GET "$COOLIFY_WEBHOOK_URL"
-          echo "Coolify build deployment successfully triggered."
+          # Pass -k / --insecure to allow HTTP/HTTPS IP address webhooks without SSL SNI errors
+          curl -k -fsSL -X POST "$COOLIFY_WEBHOOK_URL" || curl -k -fsSL -X GET "$COOLIFY_WEBHOOK_URL"
+          echo "Coolify deployment webhook successfully triggered!"
 
   deploy-frontend:
     name: Deploy Frontend to Vercel CDN
@@ -28,21 +29,22 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
-
-      - name: Setup Node.js 22.x
+      - name: Setup Node.js 20.x
         uses: actions/setup-node@v4
         with:
-          node-version: "22.x"
+          node-version: "20.x"
 
-      - name: Deploy Frontend to Vercel Production
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: "--prod"
-          working-directory: ./frontend
+      - name: Install Vercel CLI & Deploy Frontend
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::VERCEL_TOKEN secret is not set in GitHub repository secrets."
+            exit 1
+          fi
+          npm install -g vercel@latest
+          cd frontend
+          vercel pull --yes --environment=production --token=$VERCEL_TOKEN
+          vercel build --prod --token=$VERCEL_TOKEN
+          vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
+          echo "Frontend successfully deployed to Vercel Production!"
