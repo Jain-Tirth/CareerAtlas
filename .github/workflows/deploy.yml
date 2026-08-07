@@ -42,7 +42,7 @@ jobs:
         with:
           node-version: "20.x"
 
-      - name: Install Vercel CLI & Deploy Frontend
+      - name: Deploy Frontend to Vercel
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
@@ -50,9 +50,6 @@ jobs:
             echo "::error::VERCEL_TOKEN secret is not set in GitHub repository secrets."
             exit 1
           fi
-          npm install -g vercel@latest
           cd frontend
-          vercel pull --yes --environment=production --token=$VERCEL_TOKEN
-          vercel build --prod --token=$VERCEL_TOKEN
-          vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
+          npx vercel --token=$VERCEL_TOKEN --prod --yes
           echo "Frontend successfully deployed to Vercel Production!"
