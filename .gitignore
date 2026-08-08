@@ -13,3 +13,15 @@ career-watcher
 .agent/*
 deployment_plan.md
 careeratlas-key.pem
+
+# Ruflo local secrets and runtime data
+.env.local
+.env.*.local
+.claude-flow/*
+.claude/
+# .claude-flow/logs/
+# .claude-flow/sessions/
+.ruvector.db/
+.grok/
+.swarm/
+

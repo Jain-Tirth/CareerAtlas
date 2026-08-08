@@ -369,32 +369,32 @@ const Skiper106Input = React.forwardRef<
   return (
     <div className={cn("w-full space-y-1.5", containerClassName)}>
       {label && (
-        <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
-          {label} {props.required && <span className="text-blue-400">*</span>}
+        <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+          {label} {props.required && <span className="text-violet-700">*</span>}
         </label>
       )}
       <div className="relative flex items-center">
         {icon && (
-          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 z-10 pointer-events-none">
+          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 z-10 pointer-events-none">
             {icon}
           </div>
         )}
         <SmoothInput
           {...props}
           wrapperClassName={cn(
-            "w-full max-w-none bg-slate-950/80 border border-slate-800 rounded-xl p-0",
-            error ? "border-red-500/80" : "",
+            "w-full max-w-none bg-white border border-slate-300 shadow-xs focus-within:border-violet-700 focus-within:ring-4 focus-within:ring-violet-700/10 rounded-xl p-0 transition-all",
+            error ? "border-red-500 focus-within:border-red-500 focus-within:ring-red-500/10" : "",
             wrapperClassName
           )}
           className={cn(
-            "py-3 text-sm text-slate-100 placeholder:text-slate-600 font-sans",
+            "py-3 text-sm text-slate-900 placeholder:text-slate-400 font-sans",
             icon ? "pl-11" : "pl-4",
             className
           )}
         />
       </div>
       {error && (
-        <p className="text-[11px] text-red-400 font-medium pl-1">{error}</p>
+        <p className="text-[11px] text-red-600 font-medium pl-1">{error}</p>
       )}
     </div>
   );

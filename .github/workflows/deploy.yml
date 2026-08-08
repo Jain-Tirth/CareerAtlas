@@ -21,26 +21,3 @@ jobs:
           curl -fsSL -X POST "$COOLIFY_WEBHOOK_URL" || curl -fsSL -X GET "$COOLIFY_WEBHOOK_URL"
           echo "Coolify build deployment successfully triggered."
 
-  deploy-frontend:
-    name: Deploy Frontend to Vercel CDN
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
-
-      - name: Setup Node.js 22.x
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.x"
-
-      - name: Deploy Frontend to Vercel Production
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-args: "--prod"
-          working-directory: ./frontend
