@@ -26,6 +26,9 @@ export class LinkedInAgent {
           '--disable-blink-features=AutomationControlled',
           '--disable-infobars',
           '--window-size=1920,1080',
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
         ],
       });
 

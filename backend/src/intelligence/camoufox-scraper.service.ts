@@ -29,6 +29,7 @@ export class CamoufoxScraperService implements OnModuleDestroy {
       this.logger.log('[CAMOUFOX] Launching shared anti-detect browser instance...');
       this.browser = await Camoufox({
         headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
       });
     }
     return this.browser;
