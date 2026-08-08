@@ -21,6 +21,7 @@ import {
   ChevronUp
 } from "lucide-react";
 import { getUserEmail, getAuthHeaders } from "../../utils/auth";
+import { CareerAtlasLogoMark } from "@/components/ui/CareerAtlasLogoMark";
 
 interface ResumeVersion {
   id: number;
@@ -110,20 +111,21 @@ export default function ResumeManagerPage() {
       const res = await fetch(`/api/profile/versions/${id}${emailParam}`, {
         method: "PATCH",
         headers: {
-          "Content-Type": "application/json",
           ...getAuthHeaders(),
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ versionName: editName.trim() }),
       });
+
       if (res.ok) {
-        setStatusMsg("Successfully renamed version!");
         setEditingId(null);
+        setStatusMsg("Version renamed successfully.");
         fetchVersions();
       } else {
         throw new Error(await res.text());
       }
     } catch (e: any) {
-      setStatusMsg(`Failed to rename version: ${e.message}`);
+      setStatusMsg(`Failed to rename: ${e.message}`);
     }
   };
 
@@ -136,8 +138,9 @@ export default function ResumeManagerPage() {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
+
       if (res.ok) {
-        setStatusMsg("Successfully deleted version.");
+        setStatusMsg(`Deleted version "${name}".`);
         fetchVersions();
       } else {
         throw new Error(await res.text());
@@ -151,31 +154,29 @@ export default function ResumeManagerPage() {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setUploading(true);
-      setStatusMsg(`Uploading "${file.name}"...`);
-
-      const formData = new FormData();
-      formData.append("file", file);
-      const email = getUserEmail();
-      if (email) {
-        formData.append("userEmail", email);
-      }
-
+      setStatusMsg("Uploading and parsing PDF...");
       try {
-        const res = await fetch("/api/profile/upload-resume", {
+        const email = getUserEmail() || "user@example.com";
+        const formData = new FormData();
+        formData.append("resume", file);
+        formData.append("email", email);
+
+        const res = await fetch("/api/profile/upload-stream", {
           method: "POST",
           headers: getAuthHeaders(),
           body: formData,
         });
+
         if (!res.ok) throw new Error(await res.text());
-        const data = await res.json();
-        
-        const eventSource = new EventSource(`/api/profile/parse-status/${data.taskId}`);
+        const { eventUrl } = await res.json();
+        const eventSource = new EventSource(eventUrl);
+
         eventSource.onmessage = (event) => {
           const sse = JSON.parse(event.data);
-          if (sse.status === "success") {
+          if (sse.status === "completed") {
             eventSource.close();
             setUploading(false);
-            setStatusMsg(`Successfully processed and saved "${file.name}"!`);
+            setStatusMsg("New version uploaded and parsed successfully!");
             fetchVersions();
           } else if (sse.status === "error") {
             eventSource.close();
@@ -195,7 +196,6 @@ export default function ResumeManagerPage() {
     }
   };
 
-  // Helper to format item cleanly without [object Object]
   const renderItemText = (item: any): string => {
     if (typeof item === "string") return item.trim();
     if (typeof item === "number" || typeof item === "boolean") return String(item);
@@ -226,7 +226,6 @@ export default function ResumeManagerPage() {
     return "";
   };
 
-  // Helper to format experience string
   const formatExperience = (exp?: number | string) => {
     const num = typeof exp === "number" ? exp : parseFloat(String(exp || "0"));
     if (num > 0) {
@@ -235,7 +234,6 @@ export default function ResumeManagerPage() {
     return "Entry Level / Academic (0-1 Years)";
   };
 
-  // Helper to resolve preferred roles
   const resolveRoles = (data: ResumeVersion["parsedData"]) => {
     if (data.preferredRoles && data.preferredRoles.length > 0) {
       return data.preferredRoles.map(r => renderItemText(r)).filter(Boolean);
@@ -248,8 +246,8 @@ export default function ResumeManagerPage() {
       const inferred: string[] = [];
       if (skillStr.includes("react") || skillStr.includes("javascript") || skillStr.includes("html")) {
         inferred.push("Software Engineer", "Frontend Developer");
-      } else if (skillStr.includes("python") || skillStr.includes("c++") || skillStr.includes("java")) {
-        inferred.push("Software Engineer", "Backend Developer");
+      } else if (skillStr.includes("python") || skillStr.includes("sql") || skillStr.includes("data")) {
+        inferred.push("Data Engineer", "Backend Developer");
       } else {
         inferred.push("Software Engineer");
       }
@@ -259,23 +257,19 @@ export default function ResumeManagerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#09090B] text-zinc-100 font-sans selection:bg-[#2563EB] selection:text-white">
-      {/* Top Navbar */}
-      <nav className="border-b border-zinc-800/80 bg-[#09090B]/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+    <div className="min-h-screen bg-[#FFFBF7] text-[#664930] font-sans antialiased">
+      <nav className="border-b border-[#CCBEB1] bg-white sticky top-0 z-50 shadow-xs">
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between font-sans">
           <Link href="/dashboard" className="flex items-center gap-2.5 group">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#2563EB] to-blue-400 flex items-center justify-center font-black text-white text-xs shadow-md shadow-[#2563EB]/20">
-              CA
-            </div>
-            <span className="font-bold text-white tracking-tight">CareerAtlas</span>
-            <span className="text-[10px] font-mono bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded border border-zinc-700">
+            <CareerAtlasLogoMark size={32} showText />
+            <span className="text-[10px] font-mono bg-[#FFDBBB] text-[#664930] px-2 py-0.5 rounded border border-[#CCBEB1] font-bold">
               RESUME VAULT
             </span>
           </Link>
           <div className="flex items-center gap-4">
             <Link
               href="/dashboard"
-              className="text-xs text-zinc-400 hover:text-white transition-colors flex items-center gap-1"
+              className="text-xs text-[#997E67] hover:text-[#664930] transition-colors flex items-center gap-1 font-sans font-semibold"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Back to Dashboard
             </Link>
@@ -283,25 +277,23 @@ export default function ResumeManagerPage() {
         </div>
       </nav>
 
-      {/* Main Container */}
-      <div className="max-w-6xl mx-auto px-6 py-10">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-8 border-b border-zinc-800/80 mb-10">
+      <div className="max-w-6xl mx-auto px-6 py-10 font-sans">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-8 border-b border-[#CCBEB1] mb-10">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="h-2 w-2 rounded-full bg-[#2563EB] animate-pulse" />
-              <span className="text-xs font-mono font-semibold text-[#2563EB] uppercase">MULTI-VERSION VAULT</span>
+              <span className="h-2 w-2 rounded-full bg-[#664930] animate-pulse" />
+              <span className="text-xs font-mono font-bold text-[#664930] uppercase">MULTI-VERSION VAULT</span>
             </div>
-            <h1 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
+            <h1 className="text-3xl md:text-4xl font-extrabold text-[#664930] tracking-tight font-sans">
               Resume Version Manager
             </h1>
-            <p className="text-sm text-zinc-400 mt-1">
+            <p className="text-sm text-[#997E67] mt-1 font-sans">
               Complete view of all extracted technical taxonomies, candidate metadata, and role variations.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <label className="cursor-pointer inline-flex items-center gap-2 bg-[#2563EB] hover:bg-blue-500 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-[#2563EB]/20 active:scale-95">
+            <label className="cursor-pointer inline-flex items-center gap-2 bg-[#664930] hover:bg-[#523a26] text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md active:scale-95 font-sans">
               {uploading ? (
                 <>
                   <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -324,30 +316,28 @@ export default function ResumeManagerPage() {
           </div>
         </div>
 
-        {/* Status Notification */}
         {statusMsg && (
-          <div className="mb-6 p-4 rounded-xl bg-[#111827] border border-[#2563EB]/40 text-xs font-mono text-blue-300 flex items-center justify-between">
+          <div className="mb-6 p-4 rounded-xl bg-white border border-[#CCBEB1] text-xs font-mono text-[#664930] flex items-center justify-between shadow-xs">
             <span>{statusMsg}</span>
-            <button onClick={() => setStatusMsg("")} className="text-zinc-500 hover:text-white">✕</button>
+            <button onClick={() => setStatusMsg("")} className="text-[#997E67] hover:text-[#664930]">✕</button>
           </div>
         )}
 
-        {/* Versions List */}
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 border border-dashed border-zinc-800 rounded-2xl bg-zinc-950/20">
-            <div className="w-8 h-8 border-4 border-[#2563EB] border-t-transparent rounded-full animate-spin mb-3" />
-            <span className="text-sm text-zinc-500">Loading stored resume versions...</span>
+          <div className="flex flex-col items-center justify-center py-20 border border-dashed border-[#CCBEB1] rounded-2xl bg-[#FFFBF7]">
+            <div className="w-8 h-8 border-4 border-[#664930] border-t-transparent rounded-full animate-spin mb-3" />
+            <span className="text-sm text-[#997E67] font-mono">Loading stored resume versions...</span>
           </div>
         ) : versions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 border border-dashed border-zinc-800 rounded-2xl bg-zinc-950/20 text-center">
-            <FileText className="w-12 h-12 text-zinc-700 mb-3" />
-            <span className="text-sm font-bold text-white mb-1">No Resume Versions Saved Yet</span>
-            <span className="text-xs text-zinc-500 max-w-sm">
+          <div className="flex flex-col items-center justify-center py-20 border border-dashed border-[#CCBEB1] rounded-2xl bg-[#FFFBF7] text-center font-sans">
+            <FileText className="w-12 h-12 text-[#CCBEB1] mb-3" />
+            <span className="text-sm font-bold text-[#664930] mb-1">No Resume Versions Saved Yet</span>
+            <span className="text-xs text-[#997E67] max-w-sm">
               Upload your first PDF resume above to create a version record in your account.
             </span>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6">
+          <div className="grid grid-cols-1 gap-6 font-sans">
             {versions.map((v) => {
               const isEditing = editingId === v.id;
               const data = v.parsedData || {};
@@ -357,17 +347,16 @@ export default function ResumeManagerPage() {
               return (
                 <div
                   key={v.id}
-                  className={`rounded-2xl border transition-all duration-200 bg-[#111827] overflow-hidden ${
+                  className={`rounded-2xl border transition-all duration-200 bg-white overflow-hidden ${
                     v.isActive
-                      ? "border-[#2563EB] shadow-xl shadow-[#2563EB]/10"
-                      : "border-white/10 hover:border-white/20"
+                      ? "border-[#664930] shadow-md"
+                      : "border-[#CCBEB1] hover:border-[#997E67]"
                   }`}
                 >
-                  {/* Card Header Bar */}
-                  <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5">
+                  <div className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#CCBEB1]">
                     <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-xl bg-zinc-800 flex items-center justify-center text-[#2563EB] shrink-0">
-                        <FileText className="w-6 h-6" />
+                      <div className="w-11 h-11 rounded-xl bg-[#FFDBBB] flex items-center justify-center text-[#664930] shrink-0 border border-[#CCBEB1]">
+                        <FileText className="w-6 h-6 text-[#664930]" />
                       </div>
 
                       <div className="min-w-0">
@@ -377,30 +366,30 @@ export default function ResumeManagerPage() {
                               type="text"
                               value={editName}
                               onChange={(e) => setEditName(e.target.value)}
-                              className="bg-[#09090B] border border-[#2563EB] rounded px-3 py-1 text-sm text-white focus:outline-none"
+                              className="bg-[#FFFBF7] border border-[#664930] rounded px-3 py-1 text-sm text-[#664930] focus:outline-none"
                               autoFocus
                             />
                             <button
                               onClick={() => handleSaveRename(v.id)}
-                              className="bg-[#2563EB] text-white p-1.5 rounded hover:bg-blue-500"
+                              className="bg-[#664930] text-white p-1.5 rounded hover:bg-[#523a26]"
                             >
                               <Check className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => setEditingId(null)}
-                              className="bg-zinc-800 text-zinc-400 p-1.5 rounded hover:text-white"
+                              className="bg-[#CCBEB1] text-[#664930] p-1.5 rounded"
                             >
                               ✕
                             </button>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2.5">
-                            <h3 className="text-lg font-bold text-white truncate">
+                            <h3 className="text-lg font-bold text-[#664930] truncate font-sans">
                               {v.versionName}
                             </h3>
                             <button
                               onClick={() => handleStartRename(v)}
-                              className="text-zinc-500 hover:text-white transition-colors"
+                              className="text-[#997E67] hover:text-[#664930] transition-colors"
                               title="Rename Version"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
@@ -408,23 +397,22 @@ export default function ResumeManagerPage() {
                           </div>
                         )}
 
-                        <span className="text-xs text-zinc-500 font-mono block mt-0.5">
+                        <span className="text-xs text-[#997E67] font-mono block mt-0.5">
                           Uploaded: {new Date(v.createdAt).toLocaleDateString()} • Updated: {new Date(v.updatedAt).toLocaleDateString()}
                         </span>
                       </div>
                     </div>
 
-                    {/* Actions & Status Badge */}
                     <div className="flex items-center gap-3">
                       {v.isActive ? (
-                        <span className="inline-flex items-center gap-1.5 bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-xs font-mono font-bold px-3.5 py-1.5 rounded-lg shadow-sm">
-                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="inline-flex items-center gap-1.5 bg-[#FFDBBB] border border-[#CCBEB1] text-[#664930] text-xs font-mono font-bold px-3.5 py-1.5 rounded-lg shadow-xs">
+                          <span className="w-2 h-2 rounded-full bg-[#664930] animate-pulse" />
                           PRIMARY / ACTIVE
                         </span>
                       ) : (
                         <button
                           onClick={() => handleActivate(v.id)}
-                          className="bg-zinc-800 hover:bg-[#2563EB] text-zinc-300 hover:text-white text-xs font-semibold px-3.5 py-1.5 rounded-lg transition-colors"
+                          className="bg-[#FFFBF7] hover:bg-[#FFDBBB] text-[#664930] border border-[#CCBEB1] text-xs font-semibold px-3.5 py-1.5 rounded-lg transition-colors font-sans"
                         >
                           Set as Active
                         </button>
@@ -432,7 +420,7 @@ export default function ResumeManagerPage() {
 
                       <button
                         onClick={() => handleDelete(v.id, v.versionName)}
-                        className="text-zinc-500 hover:text-red-400 p-2 rounded-lg hover:bg-red-950/30 transition-colors"
+                        className="text-red-700 hover:text-red-800 p-2 rounded-lg hover:bg-red-50 transition-colors"
                         title="Delete Version"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -440,7 +428,7 @@ export default function ResumeManagerPage() {
 
                       <button
                         onClick={() => setExpandedId(isExpanded ? null : v.id)}
-                        className="text-zinc-400 hover:text-white p-2 rounded-lg bg-zinc-800/80 hover:bg-zinc-800 transition-colors flex items-center gap-1 text-xs"
+                        className="text-[#664930] hover:text-[#523a26] p-2 rounded-lg bg-[#FFDBBB] hover:bg-[#ffcd9e] border border-[#CCBEB1] transition-colors flex items-center gap-1 text-xs font-bold font-sans"
                       >
                         <span>{isExpanded ? "Collapse" : "View All Details"}</span>
                         {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -448,63 +436,57 @@ export default function ResumeManagerPage() {
                     </div>
                   </div>
 
-                  {/* Summary Strip */}
-                  <div className="p-6 bg-[#09090B]/40 border-b border-white/5 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Candidate Identity */}
+                  <div className="p-6 bg-[#FFFBF7] border-b border-[#CCBEB1] grid grid-cols-1 md:grid-cols-3 gap-4 font-sans">
                     <div className="space-y-1">
-                      <span className="text-[10px] font-mono uppercase text-zinc-500 block">Candidate Identity</span>
-                      <div className="flex items-center gap-2 text-sm font-bold text-white">
-                        <User className="w-4 h-4 text-[#2563EB]" />
+                      <span className="text-[10px] font-mono uppercase text-[#997E67] block">Candidate Identity</span>
+                      <div className="flex items-center gap-2 text-sm font-bold text-[#664930]">
+                        <User className="w-4 h-4 text-[#664930]" />
                         <span>{data.fullName ? renderItemText(data.fullName) : "Candidate Profile"}</span>
                       </div>
-                      <div className="text-xs text-zinc-400 flex flex-wrap items-center gap-3 mt-1">
+                      <div className="text-xs text-[#997E67] flex flex-wrap items-center gap-3 mt-1">
                         {data.email && (
                           <span className="flex items-center gap-1">
-                            <Mail className="w-3 h-3 text-zinc-500" />
+                            <Mail className="w-3 h-3 text-[#997E67]" />
                             {renderItemText(data.email)}
                           </span>
                         )}
                         {data.phone && (
                           <span className="flex items-center gap-1">
-                            <Phone className="w-3 h-3 text-zinc-500" />
+                            <Phone className="w-3 h-3 text-[#997E67]" />
                             {renderItemText(data.phone)}
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Target Roles */}
                     <div className="space-y-1">
-                      <span className="text-[10px] font-mono uppercase text-zinc-500 block">Target & Preferred Roles</span>
+                      <span className="text-[10px] font-mono uppercase text-[#997E67] block">Target & Preferred Roles</span>
                       <div className="flex flex-wrap gap-1.5">
                         {roles.map((role, idx) => (
-                          <span key={idx} className="bg-[#2563EB]/15 border border-[#2563EB]/40 text-[#2563EB] text-xs font-semibold px-2.5 py-0.5 rounded-lg">
+                          <span key={idx} className="bg-[#FFDBBB] border border-[#CCBEB1] text-[#664930] text-xs font-bold px-2.5 py-0.5 rounded-lg">
                             {role}
                           </span>
                         ))}
                       </div>
                     </div>
 
-                    {/* Seniority & Experience */}
                     <div className="space-y-1">
-                      <span className="text-[10px] font-mono uppercase text-zinc-500 block">Seniority & Experience Level</span>
-                      <div className="text-sm font-bold text-white flex items-center gap-2">
-                        <Briefcase className="w-4 h-4 text-[#10B981]" />
+                      <span className="text-[10px] font-mono uppercase text-[#997E67] block">Seniority & Experience Level</span>
+                      <div className="text-sm font-bold text-[#664930] flex items-center gap-2">
+                        <Briefcase className="w-4 h-4 text-[#664930]" />
                         <span>{formatExperience(data.experienceYears)}</span>
                       </div>
                       {data.experienceLevel && (
-                        <span className="text-xs text-zinc-400 block">{renderItemText(data.experienceLevel)}</span>
+                        <span className="text-xs text-[#997E67] block">{renderItemText(data.experienceLevel)}</span>
                       )}
                     </div>
                   </div>
 
-                  {/* Expanded Full Details Section */}
                   {isExpanded && (
-                    <div className="p-6 space-y-6 bg-[#09090B]/70">
-                      {/* Core Technical Skills */}
+                    <div className="p-6 space-y-6 bg-white font-sans">
                       <div>
-                        <h4 className="text-xs font-mono uppercase text-zinc-400 font-bold mb-3 flex items-center gap-2">
-                          <Sparkles className="w-4 h-4 text-[#2563EB]" />
+                        <h4 className="text-xs font-mono uppercase text-[#664930] font-bold mb-3 flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-[#664930]" />
                           Extracted Technical Skills & Stack ({data.skills?.length || 0})
                         </h4>
                         {data.skills && data.skills.length > 0 ? (
@@ -513,21 +495,20 @@ export default function ResumeManagerPage() {
                               const skillText = renderItemText(skill);
                               if (!skillText) return null;
                               return (
-                                <span key={idx} className="bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-mono px-2.5 py-1 rounded-md">
+                                <span key={idx} className="bg-[#FFDBBB] border border-[#CCBEB1] text-[#664930] text-xs font-mono font-bold px-2.5 py-1 rounded-md">
                                   {skillText}
                                 </span>
                               );
                             })}
                           </div>
                         ) : (
-                          <span className="text-xs text-zinc-500 italic">No skills extracted</span>
+                          <span className="text-xs text-[#997E67] italic">No skills extracted</span>
                         )}
                       </div>
 
-                      {/* Education */}
                       <div>
-                        <h4 className="text-xs font-mono uppercase text-zinc-400 font-bold mb-3 flex items-center gap-2">
-                          <GraduationCap className="w-4 h-4 text-purple-400" />
+                        <h4 className="text-xs font-mono uppercase text-[#664930] font-bold mb-3 flex items-center gap-2">
+                          <GraduationCap className="w-4 h-4 text-[#664930]" />
                           Education & Qualifications
                         </h4>
                         {data.education && data.education.length > 0 ? (
@@ -536,22 +517,21 @@ export default function ResumeManagerPage() {
                               const text = renderItemText(edu);
                               if (!text) return null;
                               return (
-                                <div key={idx} className="bg-[#111827] p-3 rounded-xl border border-white/5 text-xs text-zinc-300 flex items-start gap-2">
-                                  <span className="text-purple-400 font-bold">•</span>
+                                <div key={idx} className="bg-[#FFFBF7] p-3 rounded-xl border border-[#CCBEB1] text-xs text-[#664930] flex items-start gap-2 font-medium">
+                                  <span className="text-[#664930] font-bold">•</span>
                                   <span>{text}</span>
                                 </div>
                               );
                             })}
                           </div>
                         ) : (
-                          <span className="text-xs text-zinc-500 italic">No education items recorded</span>
+                          <span className="text-xs text-[#997E67] italic">No education items recorded</span>
                         )}
                       </div>
 
-                      {/* Projects */}
                       <div>
-                        <h4 className="text-xs font-mono uppercase text-zinc-400 font-bold mb-3 flex items-center gap-2">
-                          <FolderGit2 className="w-4 h-4 text-emerald-400" />
+                        <h4 className="text-xs font-mono uppercase text-[#664930] font-bold mb-3 flex items-center gap-2">
+                          <FolderGit2 className="w-4 h-4 text-[#664930]" />
                           Projects & Technical Accomplishments
                         </h4>
                         {data.projects && data.projects.length > 0 ? (
@@ -560,23 +540,22 @@ export default function ResumeManagerPage() {
                               const text = renderItemText(proj);
                               if (!text) return null;
                               return (
-                                <div key={idx} className="bg-[#111827] p-3.5 rounded-xl border border-white/5 text-xs text-zinc-300">
-                                  <span className="text-emerald-400 font-bold block mb-1">Project #{idx + 1}</span>
-                                  <p className="text-zinc-300 leading-relaxed">{text}</p>
+                                <div key={idx} className="bg-[#FFFBF7] p-3.5 rounded-xl border border-[#CCBEB1] text-xs text-[#664930]">
+                                  <span className="text-[#664930] font-bold block mb-1">Project #{idx + 1}</span>
+                                  <p className="text-[#664930] leading-relaxed font-normal">{text}</p>
                                 </div>
                               );
                             })}
                           </div>
                         ) : (
-                          <span className="text-xs text-zinc-500 italic">No project entries recorded</span>
+                          <span className="text-xs text-[#997E67] italic">No project entries recorded</span>
                         )}
                       </div>
 
-                      {/* Achievements */}
                       {data.achievements && data.achievements.length > 0 && (
                         <div>
-                          <h4 className="text-xs font-mono uppercase text-zinc-400 font-bold mb-3 flex items-center gap-2">
-                            <Award className="w-4 h-4 text-amber-400" />
+                          <h4 className="text-xs font-mono uppercase text-[#664930] font-bold mb-3 flex items-center gap-2">
+                            <Award className="w-4 h-4 text-[#664930]" />
                             Extracted Achievements & Certifications
                           </h4>
                           <div className="space-y-2">
@@ -584,8 +563,8 @@ export default function ResumeManagerPage() {
                               const text = renderItemText(ach);
                               if (!text) return null;
                               return (
-                                <div key={idx} className="bg-[#111827] p-3 rounded-xl border border-white/5 text-xs text-zinc-300 flex items-start gap-2">
-                                  <span className="text-amber-400 font-bold">🏆</span>
+                                <div key={idx} className="bg-[#FFFBF7] p-3 rounded-xl border border-[#CCBEB1] text-xs text-[#664930] flex items-start gap-2">
+                                  <span className="text-[#664930] font-bold">🏆</span>
                                   <span>{text}</span>
                                 </div>
                               );

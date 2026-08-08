@@ -56,28 +56,28 @@ export default function UploadHero({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.96 }}
             transition={{ duration: 0.3 }}
-            className="bg-[#111827]/80 backdrop-blur-md border border-white/10 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl"
+            className="bg-white border border-[#CCBEB1] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-md font-sans"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
-                <FileText className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-xl bg-[#FFDBBB] border border-[#CCBEB1] flex items-center justify-center text-[#664930] shrink-0">
+                <FileText className="w-5 h-5 text-[#664930]" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono font-bold text-white truncate max-w-xs sm:max-w-md">
+                  <span className="text-xs font-mono font-bold text-[#664930] truncate max-w-xs sm:max-w-md">
                     {activeResumeName}
                   </span>
-                  <span className="text-[10px] bg-emerald-950/60 border border-emerald-800/40 text-emerald-400 font-mono font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <CheckCircle2 className="w-2.5 h-2.5" /> Active Version
+                  <span className="text-[10px] bg-[#FFDBBB] border border-[#CCBEB1] text-[#664930] font-mono font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <CheckCircle2 className="w-2.5 h-2.5 text-[#664930]" /> Active Version
                   </span>
                 </div>
-                <span className="text-[11px] text-zinc-400 font-mono">
+                <span className="text-[11px] text-[#997E67] font-mono">
                   Parsed & indexed into vector database. Ready for agent discovery.
                 </span>
               </div>
             </div>
 
-            <label className="cursor-pointer bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold px-4 py-2 rounded-xl transition-all border border-white/10 shrink-0 text-center active:scale-95">
+            <label className="cursor-pointer bg-[#664930] hover:bg-[#523a26] text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all border border-[#CCBEB1] shrink-0 text-center active:scale-95 font-sans">
               Upload New PDF
               <input
                 type="file"
@@ -98,34 +98,31 @@ export default function UploadHero({
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`flex flex-col items-center justify-center border-2 border-dashed rounded-3xl p-8 cursor-pointer transition-all duration-300 relative overflow-hidden group ${
+            className={`flex flex-col items-center justify-center border-2 border-dashed rounded-3xl p-8 cursor-pointer transition-all duration-300 relative overflow-hidden group font-sans ${
               isDragging
-                ? "border-blue-500 bg-blue-950/30 shadow-2xl shadow-blue-500/20 scale-[1.01]"
-                : "border-white/15 hover:border-blue-500/50 bg-[#111827]/40 hover:bg-[#111827]/80"
+                ? "border-[#664930] bg-[#FFDBBB]/40 shadow-xl scale-[1.01]"
+                : "border-[#CCBEB1] hover:border-[#664930] bg-[#FFFBF7] hover:bg-white"
             }`}
           >
-            {/* Ambient Background Light Beam */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/10 via-transparent to-purple-600/10 pointer-events-none" />
-
-            <div className="w-14 h-14 rounded-2xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-4 group-hover:scale-110 transition-transform">
+            <div className="w-14 h-14 rounded-2xl bg-[#FFDBBB] border border-[#CCBEB1] flex items-center justify-center text-[#664930] mb-4 group-hover:scale-110 transition-transform">
               {isParsing ? (
-                <Loader2 className="w-7 h-7 animate-spin text-blue-400" />
+                <Loader2 className="w-7 h-7 animate-spin text-[#664930]" />
               ) : (
-                <UploadCloud className="w-7 h-7 text-blue-400" />
+                <UploadCloud className="w-7 h-7 text-[#664930]" />
               )}
             </div>
 
-            <h3 className="text-base font-extrabold text-white tracking-tight text-center">
+            <h3 className="text-base font-extrabold text-[#664930] tracking-tight text-center font-sans">
               {isParsing ? "Extracting & Parsing Resume..." : "Drop PDF Resume Here to Initialize Agent"}
             </h3>
 
-            <p className="text-xs text-zinc-400 text-center max-w-md mt-1 font-mono">
+            <p className="text-xs text-[#997E67] text-center max-w-md mt-1 font-mono">
               {isParsing
                 ? "Autonomous LLM parsing skills, experience, & target roles..."
                 : "Drag & drop your resume PDF once. CareerAtlas will store versions & auto-recommend matching roles."}
             </p>
 
-            <span className="mt-4 inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-blue-600/20 active:scale-95">
+            <span className="mt-4 inline-flex items-center gap-1.5 bg-[#664930] hover:bg-[#523a26] text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-95 font-sans">
               <Sparkles className="w-3.5 h-3.5" />
               Browse PDF File
             </span>

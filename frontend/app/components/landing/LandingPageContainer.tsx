@@ -8,7 +8,7 @@ import { FeaturesSection } from "./FeaturesSection";
 import { FaqSection } from "./FaqSection";
 import { CtaSection } from "./CtaSection";
 import { Footer } from "./Footer";
-import { DoubleStairPreloader } from "./DoubleStairPreloader";
+import { DoubleStairPreloader, HorizontalScrollStairs } from "./DoubleStairPreloader";
 import { ScrollReveal, ScrollTextReveal } from "./ScrollReveal";
 
 export function LandingPageContainer() {
@@ -22,24 +22,16 @@ export function LandingPageContainer() {
 
   return (
     <>
-      {/* Double Staircase Preloader */}
+      {/* Horizontal Double Staircase Preloader */}
       <DoubleStairPreloader />
 
       <div
         ref={pageRef}
         onMouseMove={handleMouseMove}
-        className="relative min-h-screen bg-[#09090B] text-zinc-100 font-sans selection:bg-[#2563EB] selection:text-white antialiased overflow-x-hidden group"
+        className="relative min-h-screen bg-[#FFFBF7] text-[#664930] font-sans selection:bg-[#664930] selection:text-white antialiased overflow-x-hidden group"
       >
         {/* Page-Wide Grid Background */}
-        <div className="fixed inset-0 bg-grid-pattern opacity-70 pointer-events-none z-0" />
-
-        {/* Page-Wide Zero-Lag Native CSS Mouse Spotlight Beam */}
-        <div
-          className="fixed inset-0 pointer-events-none z-[1] transition-opacity duration-300 opacity-100"
-          style={{
-            background: `radial-gradient(700px circle at var(--mouse-x, 50vw) var(--mouse-y, 30vh), rgba(37, 99, 235, 0.22), transparent 75%)`,
-          }}
-        />
+        <div className="fixed inset-0 bg-grid-pattern opacity-40 pointer-events-none z-0" />
 
         {/* Main Page Content */}
         <div className="relative z-10">
@@ -48,8 +40,13 @@ export function LandingPageContainer() {
             <HeroSection />
 
             {/* Scroll-Driven Progressive Word Reveal */}
-            <ScrollTextReveal text="Built for candidates who demand jon-profile accuracy and high-impact career progression." />
+            <ScrollTextReveal text="Built for candidates who demand high-precision resume matching and deterministic career progression." />
             
+            {/* In-View Horizontal Stair Step Progress Indicator */}
+            <ScrollReveal direction="up">
+              <HorizontalScrollStairs />
+            </ScrollReveal>
+
             <ScrollReveal direction="up">
               <PipelineSection />
             </ScrollReveal>

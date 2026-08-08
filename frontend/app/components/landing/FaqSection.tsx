@@ -30,17 +30,17 @@ export function FaqSection() {
   const [openIdx, setOpenIdx] = useState<number | null>(0);
 
   return (
-    <section id="faq" className="py-24 bg-transparent border-t border-white/5">
+    <section id="faq" className="py-24 bg-transparent border-t border-[#CCBEB1]">
       <div className="max-w-4xl mx-auto px-6">
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <span className="text-xs font-mono text-[#2563EB] tracking-wider uppercase font-semibold">
+          <span className="text-xs font-mono text-[#664930] tracking-wider uppercase font-semibold">
             FREQUENTLY ASKED QUESTIONS
           </span>
-          <h2 className="text-3xl md:text-5xl font-extrabold text-white tracking-tight mt-3 mb-4">
+          <h2 className="text-3xl md:text-5xl font-extrabold text-[#664930] tracking-tight mt-3 mb-4 font-sans">
             Answers to common questions.
           </h2>
-          <p className="text-zinc-400 text-sm md:text-base">
+          <p className="text-[#997E67] text-sm md:text-base font-sans">
             Everything you need to know about privacy, vector matching, and data control.
           </p>
         </div>
@@ -53,20 +53,20 @@ export function FaqSection() {
             return (
               <div
                 key={idx}
-                className={`rounded-2xl border transition-all duration-200 overflow-hidden backdrop-blur-md ${
+                className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
                   isOpen
-                    ? "bg-[#111827]/90 border-[#2563EB]/50 shadow-xl card-glow-blue"
-                    : "bg-[#111827]/40 border-white/5 hover:border-white/20"
+                    ? "bg-white border-[#664930] shadow-xl"
+                    : "bg-[#FFFBF7] border-[#CCBEB1] hover:border-[#997E67]"
                 }`}
               >
                 <button
                   onClick={() => setOpenIdx(isOpen ? null : idx)}
-                  className="w-full p-6 text-left flex items-center justify-between gap-4 font-bold text-white text-base md:text-lg focus:outline-none"
+                  className="w-full p-6 text-left flex items-center justify-between gap-4 font-bold text-[#664930] text-base md:text-lg focus:outline-none font-sans"
                 >
                   <span>{faq.question}</span>
                   <div
-                    className={`w-7 h-7 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0 transition-transform duration-200 ${
-                      isOpen ? "rotate-180 bg-[#2563EB] text-white" : "text-zinc-400"
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 ${
+                      isOpen ? "rotate-180 bg-[#664930] text-white" : "bg-[#FFDBBB] text-[#664930]"
                     }`}
                   >
                     <ChevronDown className="w-4 h-4" />
@@ -74,7 +74,7 @@ export function FaqSection() {
                 </button>
 
                 {isOpen && (
-                  <div className="px-6 pb-6 text-sm text-zinc-400 leading-relaxed border-t border-white/5 pt-4">
+                  <div className="px-6 pb-6 text-sm text-[#997E67] leading-relaxed border-t border-[#CCBEB1]/50 pt-4 font-sans">
                     {faq.answer}
                   </div>
                 )}
