@@ -480,7 +480,7 @@ export default function AutonomousAgentWorkspace() {
   };
 
   return (
-    <div className="min-h-screen bg-[#09090B] text-zinc-100 font-sans flex flex-col lg:flex-row overflow-x-hidden selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#FFFBF7] text-[#664930] font-sans flex flex-col lg:flex-row overflow-x-hidden selection:bg-[#664930] selection:text-white">
       {/* Left Sidebar */}
       <AgentSidebar
         storedVersions={storedVersions}
@@ -506,18 +506,18 @@ export default function AutonomousAgentWorkspace() {
         />
 
         {/* Action Bar: Trigger Agent Search Button */}
-        <div className="bg-[#111827]/70 backdrop-blur-md border border-white/10 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+        <div className="bg-white border border-[#CCBEB1] rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md font-sans">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
-              <Sparkles className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-[#FFDBBB] border border-[#CCBEB1] flex items-center justify-center text-[#664930] shrink-0">
+              <Sparkles className="w-5 h-5 text-[#664930]" />
             </div>
             <div>
-              <span className="text-xs font-mono font-bold text-white block">
+              <span className="text-xs font-mono font-bold text-[#664930] block">
                 Systematic Pipeline Discovery Control
               </span>
-              <span className="text-[11px] text-zinc-400 font-mono">
-                Target: <span className="text-blue-400 font-semibold">{searchTerm}</span> in{" "}
-                <span className="text-blue-400 font-semibold">{locationPref}</span>
+              <span className="text-[11px] text-[#997E67] font-mono">
+                Target: <span className="text-[#664930] font-bold">{searchTerm}</span> in{" "}
+                <span className="text-[#664930] font-bold">{locationPref}</span>
               </span>
             </div>
           </div>
@@ -525,7 +525,7 @@ export default function AutonomousAgentWorkspace() {
           <button
             onClick={handleTriggerAgentSearch}
             disabled={isSearching || isParsing}
-            className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 disabled:opacity-50 text-white font-extrabold text-xs px-6 py-3 rounded-xl transition-all shadow-lg shadow-blue-600/25 active:scale-95 flex items-center justify-center gap-2"
+            className="w-full sm:w-auto bg-[#664930] hover:bg-[#523a26] disabled:opacity-50 text-white font-extrabold text-xs px-6 py-3 rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 font-sans"
           >
             {isSearching ? (
               <>

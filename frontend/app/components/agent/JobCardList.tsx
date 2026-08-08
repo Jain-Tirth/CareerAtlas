@@ -61,22 +61,22 @@ export default function JobCardList({
 }: JobCardListProps) {
   return (
     <div className="space-y-6 pt-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#CCBEB1] pb-4 font-sans">
         <div>
-          <h2 className="text-xl font-extrabold text-white flex items-center gap-2 tracking-tight">
-            <Sparkles className="w-5 h-5 text-blue-400" />
+          <h2 className="text-xl font-extrabold text-[#664930] flex items-center gap-2 tracking-tight font-sans">
+            <Sparkles className="w-5 h-5 text-[#664930]" />
             Ranked Opportunities ({jobs.length})
           </h2>
-          <p className="text-xs text-zinc-400 mt-0.5">
+          <p className="text-xs text-[#997E67] mt-0.5 font-sans">
             Evaluated via multi-stage hard filters, skill alias expansion, and cosine similarity.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 font-sans">
           <button
             onClick={onClearHistory}
             disabled={isLoading}
-            className="text-xs bg-red-950/20 hover:bg-red-900/30 text-red-400 border border-red-900/40 px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 disabled:opacity-50"
+            className="text-xs bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 disabled:opacity-50 font-sans"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Clear Cache
@@ -84,7 +84,7 @@ export default function JobCardList({
           <button
             onClick={onRefresh}
             disabled={isLoading}
-            className="text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 disabled:opacity-50"
+            className="text-xs bg-[#FFDBBB] hover:bg-[#ffcd9e] text-[#664930] border border-[#CCBEB1] px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 disabled:opacity-50 font-bold font-sans"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
             Refresh
@@ -93,15 +93,15 @@ export default function JobCardList({
       </div>
 
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 border border-dashed border-zinc-800 rounded-2xl bg-zinc-950/20">
-          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3" />
-          <span className="text-sm text-zinc-500 font-mono">Retrieving ranked job results...</span>
+        <div className="flex flex-col items-center justify-center py-20 border border-dashed border-[#CCBEB1] rounded-2xl bg-[#FFFBF7]">
+          <div className="w-8 h-8 border-4 border-[#664930] border-t-transparent rounded-full animate-spin mb-3" />
+          <span className="text-sm text-[#997E67] font-mono">Retrieving ranked job results...</span>
         </div>
       ) : jobs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 border border-dashed border-zinc-800 rounded-2xl bg-zinc-950/20 text-center">
-          <Sparkles className="w-10 h-10 text-zinc-700 mb-3" />
-          <span className="text-sm text-zinc-400 font-semibold">No recommendation results found yet</span>
-          <span className="text-xs text-zinc-500 mt-1 max-w-sm">
+        <div className="flex flex-col items-center justify-center py-16 border border-dashed border-[#CCBEB1] rounded-2xl bg-[#FFFBF7] text-center font-sans">
+          <Sparkles className="w-10 h-10 text-[#CCBEB1] mb-3" />
+          <span className="text-sm text-[#664930] font-bold">No recommendation results found yet</span>
+          <span className="text-xs text-[#997E67] mt-1 max-w-sm">
             Select or upload a resume version above and click "Start Agent Search" to populate recommendations.
           </span>
         </div>
@@ -125,78 +125,78 @@ export default function JobCardList({
             }
 
             let fitText = "Moderate Match";
-            let scoreColor = "bg-yellow-500/10 border-yellow-500/30 text-yellow-400";
+            let scoreColor = "bg-[#FFDBBB] border-[#CCBEB1] text-[#664930]";
             if (confScore >= 80) {
               fitText = "Strong Match";
-              scoreColor = "bg-emerald-500/10 border-emerald-500/30 text-emerald-400";
+              scoreColor = "bg-[#664930] border-[#523a26] text-white";
             } else if (confScore >= 65) {
               fitText = "Good Match";
-              scoreColor = "bg-blue-500/10 border-blue-500/30 text-blue-400";
+              scoreColor = "bg-[#FFDBBB] border-[#CCBEB1] text-[#664930]";
             }
 
             return (
               <motion.div
                 key={item.id}
                 variants={cardVariants}
-                className="bg-[#111827]/70 backdrop-blur-md rounded-2xl border border-white/10 p-6 flex flex-col justify-between hover:border-blue-500/40 transition-all shadow-xl group"
+                className="bg-white rounded-2xl border border-[#CCBEB1] p-6 flex flex-col justify-between hover:border-[#664930] transition-all shadow-md group font-sans"
               >
                 <div>
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <div className="min-w-0">
-                      <h3 className="text-base font-bold text-white truncate group-hover:text-blue-400 transition-colors">
+                      <h3 className="text-base font-bold text-[#664930] truncate transition-colors font-sans">
                         {item.title}
                       </h3>
-                      <p className="text-sm font-semibold text-zinc-400 truncate mt-0.5">
+                      <p className="text-sm font-semibold text-[#997E67] truncate mt-0.5 font-sans">
                         {item.company}
                       </p>
                     </div>
 
                     <div className={`shrink-0 px-3 py-1.5 rounded-xl border text-xs font-extrabold font-mono flex items-center justify-center gap-1 ${scoreColor}`}>
                       <span>{fitText}</span>
-                      <span className="text-[10px] opacity-70">({confScore}%)</span>
+                      <span className="text-[10px] opacity-80">({confScore}%)</span>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-zinc-500 border-b border-white/5 pb-3 mb-4 font-mono">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[#997E67] border-b border-[#CCBEB1]/50 pb-3 mb-4 font-mono">
                     <span className="flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-zinc-500" />
+                      <MapPin className="w-3.5 h-3.5 text-[#997E67]" />
                       {item.location}
                     </span>
                     <span className="flex items-center gap-1">
-                      <Globe className="w-3.5 h-3.5 text-zinc-500" />
+                      <Globe className="w-3.5 h-3.5 text-[#997E67]" />
                       {item.source}
                     </span>
                     <span className="flex items-center gap-1" suppressHydrationWarning>
-                      <Calendar className="w-3.5 h-3.5 text-zinc-500" />
+                      <Calendar className="w-3.5 h-3.5 text-[#997E67]" />
                       {new Date(item.createdAt).toLocaleDateString()}
                     </span>
                   </div>
 
                   {item.reasoning && (
                     <div className="mb-3">
-                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-500 block mb-1">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#664930] block mb-1">
                         AI Fit Reasoning
                       </span>
-                      <p className="bg-[#09090B]/60 border border-white/5 rounded-xl p-3 text-xs text-zinc-300 italic leading-relaxed">
+                      <p className="bg-[#FFFBF7] border border-[#CCBEB1] rounded-xl p-3 text-xs text-[#664930] italic leading-relaxed font-sans">
                         "{item.reasoning}"
                       </p>
                     </div>
                   )}
 
                   {((factors.positive && factors.positive.length > 0) || (factors.negative && factors.negative.length > 0)) && (
-                    <div className="pt-2 border-t border-white/5 space-y-1.5">
-                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-500 block mb-1">
+                    <div className="pt-2 border-t border-[#CCBEB1]/50 space-y-1.5">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#664930] block mb-1">
                         Confidence Factors
                       </span>
                       {factors.positive?.map((p: string, idx: number) => (
-                        <div key={`pos-${idx}`} className="flex items-start gap-1.5 text-[11px] text-emerald-400 font-mono">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0 mt-0.5" />
+                        <div key={`pos-${idx}`} className="flex items-start gap-1.5 text-[11px] text-[#664930] font-mono font-semibold">
+                          <CheckCircle2 className="w-3 h-3 text-[#664930] shrink-0 mt-0.5" />
                           <span>{p}</span>
                         </div>
                       ))}
                       {factors.negative?.map((n: string, idx: number) => (
-                        <div key={`neg-${idx}`} className="flex items-start gap-1.5 text-[11px] text-yellow-400 font-mono">
-                          <AlertTriangle className="w-3 h-3 text-yellow-400 shrink-0 mt-0.5" />
+                        <div key={`neg-${idx}`} className="flex items-start gap-1.5 text-[11px] text-amber-800 font-mono">
+                          <AlertTriangle className="w-3 h-3 text-amber-800 shrink-0 mt-0.5" />
                           <span>{n}</span>
                         </div>
                       ))}
@@ -204,19 +204,19 @@ export default function JobCardList({
                   )}
                 </div>
 
-                <div className="mt-5 pt-4 border-t border-white/5 flex items-center justify-end">
+                <div className="mt-5 pt-4 border-t border-[#CCBEB1]/50 flex items-center justify-end">
                   {item.url && (item.url.startsWith("http://") || item.url.startsWith("https://")) ? (
                     <a
                       href={item.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-lg shadow-blue-600/20 active:scale-95"
+                      className="bg-[#664930] hover:bg-[#523a26] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md active:scale-95 font-sans"
                     >
                       Apply directly
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   ) : (
-                    <span className="text-xs text-zinc-600 italic font-mono">No direct link</span>
+                    <span className="text-xs text-[#997E67] italic font-mono">No direct link</span>
                   )}
                 </div>
               </motion.div>

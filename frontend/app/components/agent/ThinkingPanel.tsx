@@ -21,24 +21,24 @@ export default function ThinkingPanel({ steps, isSearching }: ThinkingPanelProps
   const [isOpen, setIsOpen] = useState<boolean>(true);
 
   return (
-    <div className="bg-[#09090B] border border-white/10 rounded-2xl overflow-hidden shadow-lg">
+    <div className="bg-white border border-[#CCBEB1] rounded-2xl overflow-hidden shadow-md font-sans">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-5 py-3.5 bg-[#111827]/60 hover:bg-[#111827] flex items-center justify-between transition-colors border-b border-white/5"
+        className="w-full px-5 py-3.5 bg-[#FFFBF7] hover:bg-[#FFDBBB]/40 flex items-center justify-between transition-colors border-b border-[#CCBEB1]/60 font-sans"
       >
         <div className="flex items-center gap-2.5">
-          <Cpu className={`w-4 h-4 text-blue-400 ${isSearching ? "animate-pulse" : ""}`} />
-          <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300">
+          <Cpu className={`w-4 h-4 text-[#664930] ${isSearching ? "animate-pulse" : ""}`} />
+          <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#664930]">
             Agent Thought Process
           </span>
           {isSearching && (
-            <span className="text-[10px] bg-yellow-950/60 border border-yellow-800/50 text-yellow-400 px-2 py-0.5 rounded-full font-mono animate-pulse">
+            <span className="text-[10px] bg-[#FFDBBB] border border-[#CCBEB1] text-[#664930] px-2 py-0.5 rounded-full font-mono font-bold animate-pulse">
               Active Reasoning
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2 text-xs font-mono text-zinc-400">
+        <div className="flex items-center gap-2 text-xs font-mono text-[#997E67]">
           <span>{isOpen ? "Collapse" : "Expand"}</span>
           {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </div>
@@ -54,24 +54,24 @@ export default function ThinkingPanel({ steps, isSearching }: ThinkingPanelProps
             className="p-5 space-y-3 font-mono text-xs"
           >
             {steps.map((step, idx) => {
-              let icon = <div className="w-2 h-2 rounded-full bg-zinc-700" />;
-              let textColor = "text-zinc-500";
+              let icon = <div className="w-2 h-2 rounded-full bg-[#CCBEB1]" />;
+              let textColor = "text-[#997E67]";
 
               if (step.status === "running") {
-                icon = <Loader2 className="w-3.5 h-3.5 text-yellow-400 animate-spin" />;
-                textColor = "text-yellow-200 font-semibold";
+                icon = <Loader2 className="w-3.5 h-3.5 text-[#664930] animate-spin" />;
+                textColor = "text-[#664930] font-bold";
               } else if (step.status === "success") {
-                icon = <Check className="w-3.5 h-3.5 text-emerald-400" />;
-                textColor = "text-emerald-300";
+                icon = <Check className="w-3.5 h-3.5 text-[#664930]" />;
+                textColor = "text-[#664930] font-semibold";
               } else if (step.status === "error") {
-                icon = <AlertCircle className="w-3.5 h-3.5 text-red-400" />;
-                textColor = "text-red-300 font-bold";
+                icon = <AlertCircle className="w-3.5 h-3.5 text-red-600" />;
+                textColor = "text-red-700 font-bold";
               }
 
               return (
                 <div key={step.id} className="flex items-start gap-3 relative">
                   {idx < steps.length - 1 && (
-                    <div className="absolute left-[7px] top-5 bottom-0 w-[1px] bg-zinc-800" />
+                    <div className="absolute left-[7px] top-5 bottom-0 w-[1px] bg-[#CCBEB1]" />
                   )}
 
                   <div className="w-4 h-4 flex items-center justify-center shrink-0 mt-0.5">
@@ -82,12 +82,12 @@ export default function ThinkingPanel({ steps, isSearching }: ThinkingPanelProps
                     <div className={`${textColor} flex items-center justify-between`}>
                       <span>{step.name}</span>
                       {step.status === "running" && (
-                        <span className="text-[10px] text-yellow-400/80 animate-pulse">Thinking...</span>
+                        <span className="text-[10px] text-[#664930] animate-pulse font-bold">Thinking...</span>
                       )}
                     </div>
-                    <div className="text-[11px] text-zinc-500 mt-0.5">{step.description}</div>
+                    <div className="text-[11px] text-[#997E67] mt-0.5">{step.description}</div>
                     {step.errorDetails && (
-                      <div className="mt-1 p-2 bg-red-950/30 border border-red-900/40 rounded text-[10px] text-red-400 font-mono">
+                      <div className="mt-1 p-2 bg-red-50 border border-red-200 rounded text-[10px] text-red-700 font-mono">
                         Error: {step.errorDetails}
                       </div>
                     )}

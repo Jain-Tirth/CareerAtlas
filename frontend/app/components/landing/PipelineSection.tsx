@@ -13,50 +13,50 @@ export function PipelineSection() {
       number: "01",
       title: "Upload Resume",
       subtitle: "PDF Ingestion",
-      description: "Drop your PDF resume once. Raw text, bullet points, and achievements are extracted securely without manual data entry.",
+      description: "Drop your PDF once to extract raw text and skills instantly.",
       icon: Upload,
       metrics: "Sub-second parsing",
     },
     {
       id: "step-2",
       number: "02",
-      title: "AI Profile Extraction",
-      subtitle: "Taxonomy & Vectorization",
-      description: "Extracts core skills, tech stack, work experience years, education, and project impacts into structured JSON and 384-dim embeddings.",
+      title: "AI Extraction",
+      subtitle: "Taxonomy & Embeddings",
+      description: "Converts skills and achievements into 384-dimension vectors.",
       icon: Cpu,
-      metrics: "Zero keyword loss",
+      metrics: "384d vector space",
     },
     {
       id: "step-3",
       number: "03",
       title: "Matching Engine",
       subtitle: "Multi-Stage Scoring",
-      description: "Runs hard location/remote criteria filters, synonym alias dictionaries, and vector cosine similarity scoring across ingested job feeds.",
+      description: "Applies hard filters and cosine similarity scoring against job feeds.",
       icon: GitMerge,
       metrics: "Hard filter precision",
     },
     {
       id: "step-4",
       number: "04",
-      title: "Relevant Jobs",
-      subtitle: "Ranked Stream",
-      description: "Generates a clean list of top matching roles ranked strictly by confidence fit percentage, with positive/negative match factors explained.",
+      title: "Ranked Roles",
+      subtitle: "Match Stream",
+      description: "Outputs high-fit job opportunities sorted strictly by confidence score.",
       icon: Briefcase,
-      metrics: "Filtered fit scores ≥ 80%",
+      metrics: "Fit scores ≥ 80%",
     },
     {
       id: "step-5",
       number: "05",
       title: "Apply & Alert",
-      subtitle: "1-Click Action & Alerts",
-      description: "Direct links to company ATS portals and instant Telegram notifications for top-tier opportunities matching your profile.",
+      subtitle: "1-Click Dispatch",
+      description: "Direct ATS portal links and instant Telegram notifications.",
       icon: Send,
       metrics: "Real-time dispatch",
     },
   ];
 
   return (
-    <section id="how-it-works" className="py-24 bg-transparent border-t border-white/5 relative">
+    <section id="pipeline" className="py-24 bg-transparent border-t border-slate-200/80 relative">
       <div className="max-w-6xl mx-auto px-6">
         {/* Section Header */}
         <motion.div
@@ -66,13 +66,13 @@ export function PipelineSection() {
           transition={{ duration: 0.5 }}
           className="text-center max-w-3xl mx-auto mb-16"
         >
-          <span className="text-xs font-mono text-[#2563EB] tracking-wider uppercase font-semibold">
+          <span className="text-xs font-mono text-[#664930] tracking-wider uppercase font-semibold">
             ARCHITECTURE & WORKFLOW
           </span>
-          <h2 className="text-3xl md:text-5xl font-extrabold text-white tracking-tight mt-3 mb-4">
+          <h2 className="text-3xl md:text-5xl font-extrabold text-[#664930] tracking-tight mt-3 mb-4 font-sans">
             How It Works
           </h2>
-          <p className="text-zinc-400 text-base md:text-lg">
+          <p className="text-[#997E67] text-base md:text-lg font-sans">
             An automated, multi-stage ingestion pipeline engineered to surface relevant career opportunities in seconds.
           </p>
         </motion.div>
@@ -91,39 +91,39 @@ export function PipelineSection() {
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: idx * 0.08 }}
                 onClick={() => setActiveStep(idx)}
-                className={`p-6 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between relative group backdrop-blur-md ${
+                className={`p-6 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col justify-between relative group ${
                   isActive
-                    ? "bg-[#111827]/90 border-[#2563EB] shadow-xl card-glow-blue scale-[1.02]"
-                    : "bg-[#111827]/40 border-white/5 hover:border-white/20 hover:bg-[#111827]/70"
+                    ? "bg-white border-[#664930] shadow-xl scale-[1.02]"
+                    : "bg-[#FFFBF7] border-[#CCBEB1] hover:border-[#997E67] hover:bg-white"
                 }`}
               >
                 {/* Step Header */}
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <span className="font-mono text-xs font-bold text-zinc-500">{step.number}</span>
+                    <span className="font-mono text-xs font-bold text-[#997E67]">{step.number}</span>
                     <div
                       className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
                         isActive
-                          ? "bg-[#2563EB] text-white shadow-md shadow-[#2563EB]/30"
-                          : "bg-zinc-800 text-zinc-400 group-hover:text-white"
+                          ? "bg-[#664930] text-white shadow-md shadow-[#664930]/20"
+                          : "bg-[#FFDBBB] text-[#664930] group-hover:bg-[#664930] group-hover:text-white"
                       }`}
                     >
                       <Icon className="w-4 h-4" />
                     </div>
                   </div>
 
-                  <h3 className="text-base font-bold text-white mb-1">{step.title}</h3>
-                  <span className="text-[11px] font-mono text-zinc-500 block mb-3">{step.subtitle}</span>
+                  <h3 className="text-base font-bold text-[#664930] mb-1 font-sans">{step.title}</h3>
+                  <span className="text-[11px] font-mono text-[#997E67] block mb-3">{step.subtitle}</span>
 
-                  <p className="text-xs text-zinc-400 leading-relaxed">{step.description}</p>
+                  <p className="text-xs text-[#997E67] leading-relaxed font-sans">{step.description}</p>
                 </div>
 
                 {/* Step Footer Metric Badge */}
-                <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-[11px] font-mono text-zinc-500">
+                <div className="mt-6 pt-4 border-t border-[#CCBEB1]/50 flex items-center justify-between text-[11px] font-mono text-[#997E67]">
                   <span>{step.metrics}</span>
                   <ArrowRight
                     className={`w-3.5 h-3.5 transition-transform ${
-                      isActive ? "text-[#2563EB] translate-x-1" : "text-zinc-600"
+                      isActive ? "text-[#664930] translate-x-1" : "text-[#997E67]"
                     }`}
                   />
                 </div>

@@ -92,8 +92,8 @@ export function ScrollTextReveal({
               }}
               className={`inline-block transition-colors ${
                 isBuiltForPrecision
-                  ? "bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-300 to-emerald-400 font-black"
-                  : "text-slate-100"
+                  ? "text-[#664930] font-black underline stroke-[#CCBEB1]"
+                  : "text-[#997E67]"
               }`}
             >
               {word}
