@@ -18,16 +18,34 @@ jobs:
             echo "::error::COOLIFY_WEBHOOK_URL secret is not set in GitHub repository secrets."
             exit 1
           fi
+          
+          echo "Target Webhook URL: ${COOLIFY_WEBHOOK_URL:0:30}..."
           echo "Triggering Coolify deployment for supersparton/CareerAtlas:main on AWS EC2..."
           
-          # Pass Bearer authorization token header if COOLIFY_TOKEN secret exists
-          AUTH_HEADER=""
+          # Prepare curl headers array safely in Bash
+          HEADERS=("-H" "Content-Type: application/json")
           if [ -n "$COOLIFY_TOKEN" ]; then
-            AUTH_HEADER="-H \"Authorization: Bearer $COOLIFY_TOKEN\""
+            HEADERS+=("-H" "Authorization: Bearer $COOLIFY_TOKEN")
           fi
           
-          # Call Coolify Webhook URL with GET/POST and capture response status code
-          RESPONSE=$(curl -k -s -w "\nHTTP_STATUS:%{http_code}" $AUTH_HEADER -X GET "$COOLIFY_WEBHOOK_URL" || curl -k -s -w "\nHTTP_STATUS:%{http_code}" $AUTH_HEADER -X POST "$COOLIFY_WEBHOOK_URL")
+          # Call Coolify Webhook with curl, showing response body and status code
+          HTTP_STATUS=$(curl -k -s -o /tmp/coolify_response.txt -w "%{http_code}" "${HEADERS[@]}" -X GET "$COOLIFY_WEBHOOK_URL" || true)
           
-          echo "Coolify Server Response:"
-          echo "$RESPONSE"
+          # If GET returned 404/405, retry with POST
+          if [ "$HTTP_STATUS" = "404" ] || [ "$HTTP_STATUS" = "405" ] || [ "$HTTP_STATUS" = "000" ]; then
+            echo "GET request returned status $HTTP_STATUS, trying POST..."
+            HTTP_STATUS=$(curl -k -s -o /tmp/coolify_response.txt -w "%{http_code}" "${HEADERS[@]}" -X POST "$COOLIFY_WEBHOOK_URL" || true)
+          fi
+          
+          echo "Coolify HTTP Status Code: $HTTP_STATUS"
+          echo "Coolify Response Body:"
+          cat /tmp/coolify_response.txt
+          echo ""
+          
+          # Check if response status is 200, 201, or 202
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -le 299 ]; then
+            echo "✅ Coolify deployment webhook triggered successfully!"
+          else
+            echo "::error::Coolify deployment failed with HTTP Status: $HTTP_STATUS"
+            exit 1
+          fi
