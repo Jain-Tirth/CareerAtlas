@@ -12,6 +12,7 @@ jobs:
       - name: Trigger Coolify Deployment Webhook
         env:
           COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
         run: |
           if [ -z "$COOLIFY_WEBHOOK_URL" ]; then
             echo "::error::COOLIFY_WEBHOOK_URL secret is not set in GitHub repository secrets."
@@ -19,13 +20,14 @@ jobs:
           fi
           echo "Triggering Coolify deployment for supersparton/CareerAtlas:main on AWS EC2..."
           
-          # Convert https:// to http:// if webhook points to an IP/port without SSL
-          HTTP_URL=$(echo "$COOLIFY_WEBHOOK_URL" | sed 's/https:\/\//http:\/\//g')
+          # Pass Bearer authorization token header if COOLIFY_TOKEN secret exists
+          AUTH_HEADER=""
+          if [ -n "$COOLIFY_TOKEN" ]; then
+            AUTH_HEADER="-H \"Authorization: Bearer $COOLIFY_TOKEN\""
+          fi
           
-          curl -k -s -X POST "$COOLIFY_WEBHOOK_URL" || \
-          curl -k -s -X GET "$COOLIFY_WEBHOOK_URL" || \
-          curl -s -X POST "$HTTP_URL" || \
-          curl -s -X GET "$HTTP_URL"
+          # Call Coolify Webhook URL with GET/POST and capture response status code
+          RESPONSE=$(curl -k -s -w "\nHTTP_STATUS:%{http_code}" $AUTH_HEADER -X GET "$COOLIFY_WEBHOOK_URL" || curl -k -s -w "\nHTTP_STATUS:%{http_code}" $AUTH_HEADER -X POST "$COOLIFY_WEBHOOK_URL")
           
-          echo ""
-          echo "Coolify deployment webhook successfully triggered!"
+          echo "Coolify Server Response:"
+          echo "$RESPONSE"
