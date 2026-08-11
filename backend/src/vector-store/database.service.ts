@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { Pool } from 'pg';
 
 @Injectable()
@@ -8,14 +13,19 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     this.logger.log('[DATABASE] Connecting to PostgreSQL database...');
-    
+
     // Connect using DATABASE_URL or individual variables
     const connectionString = process.env.DATABASE_URL;
-    
+
     // Automatically apply SSL options for Supabase / Cloud PostgreSQL
-    const isSupabase = 
-      (connectionString && (connectionString.includes('supabase') || connectionString.includes('pooler') || connectionString.includes('sslmode=require'))) ||
-      (process.env.DB_HOST && (process.env.DB_HOST.includes('supabase') || process.env.DB_HOST.includes('pooler'))) ||
+    const isSupabase =
+      (connectionString &&
+        (connectionString.includes('supabase') ||
+          connectionString.includes('pooler') ||
+          connectionString.includes('sslmode=require'))) ||
+      (process.env.DB_HOST &&
+        (process.env.DB_HOST.includes('supabase') ||
+          process.env.DB_HOST.includes('pooler'))) ||
       process.env.DB_SSL === 'true';
 
     this.pool = new Pool({
@@ -35,11 +45,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       // Test connection
       await this.pool.query('SELECT NOW()');
       this.logger.log('[DATABASE] Successfully connected to PostgreSQL.');
-      
+
       // Initialize schema
       await this.initializeSchema();
     } catch (err) {
-      this.logger.error(`[DATABASE] Failed to connect to PostgreSQL: ${err.message}`);
+      this.logger.error(
+        `[DATABASE] Failed to connect to PostgreSQL: ${err.message}`,
+      );
     }
   }
 
@@ -59,7 +71,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private async initializeSchema() {
     this.logger.log('[DATABASE] Initializing database schema...');
     const client = await this.pool.connect();
-    
+
     try {
       await client.query('BEGIN');
 
@@ -210,11 +222,52 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         CREATE INDEX IF NOT EXISTS idx_search_sessions_user ON agent_search_sessions(user_id, version_id);
       `);
 
+      // 9. Create job tracker tables
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS jobs (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          title VARCHAR(255) NOT NULL,
+          company VARCHAR(255) NOT NULL,
+          location VARCHAR(255),
+          salary_min INTEGER,
+          salary_max INTEGER,
+          url TEXT,
+          notes TEXT,
+          tags TEXT[] DEFAULT '{}',
+          phase VARCHAR(20) NOT NULL DEFAULT 'bookmarked',
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          bookmarked BOOLEAN NOT NULL DEFAULT false,
+          source VARCHAR(50) DEFAULT 'manual',
+          company_logo_url TEXT,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          last_moved_at TIMESTAMPTZ
+        );
+        CREATE INDEX IF NOT EXISTS idx_jobs_user_phase ON jobs(user_id, phase, sort_order);
+        CREATE INDEX IF NOT EXISTS idx_jobs_user_company ON jobs(user_id, company);
+        CREATE INDEX IF NOT EXISTS idx_jobs_user_tags ON jobs(user_id, tags);
+        CREATE TABLE IF NOT EXISTS job_phase_changes (
+          id SERIAL PRIMARY KEY,
+          job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+          user_id INTEGER NOT NULL,
+          from_phase VARCHAR(20),
+          to_phase VARCHAR(20) NOT NULL,
+          changed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_job_phase_changes_job ON job_phase_changes(job_id);
+      `);
+
       await client.query('COMMIT');
-      this.logger.log('[DATABASE] Database schema and indexes initialized successfully.');
+      this.logger.log(
+        '[DATABASE] Database schema and indexes initialized successfully.',
+      );
     } catch (err) {
       await client.query('ROLLBACK');
-      this.logger.error(`[DATABASE] Failed to initialize database schema: ${err.message}`, err.stack);
+      this.logger.error(
+        `[DATABASE] Failed to initialize database schema: ${err.message}`,
+        err.stack,
+      );
       throw err;
     } finally {
       client.release();
@@ -223,11 +276,15 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   async getNextExecutionId(): Promise<string> {
     try {
-      const res = await this.query("SELECT nextval('workflow_run_id_seq') as val");
+      const res = await this.query(
+        "SELECT nextval('workflow_run_id_seq') as val",
+      );
       const num = res.rows[0].val;
       return `run_${String(num).padStart(4, '0')}`;
     } catch (err) {
-      this.logger.error(`[DATABASE] Failed to get next run sequence: ${err.message}`);
+      this.logger.error(
+        `[DATABASE] Failed to get next run sequence: ${err.message}`,
+      );
       return `run_${Date.now()}`;
     }
   }
