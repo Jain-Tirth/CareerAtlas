@@ -52,7 +52,6 @@ export function CareerAtlasLogoMark({ className = "h-9 w-auto", size = 36, showT
       {showText && (
         <span className="font-extrabold text-[#664930] tracking-tight text-lg flex items-center gap-1.5 font-sans">
           <span>CareerAtlas</span>
-          <span className="text-[#997E67] font-black">AI</span>
         </span>
       )}
     </div>

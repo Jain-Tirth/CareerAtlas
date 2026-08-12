@@ -21,6 +21,7 @@ import {
 import { getUserEmail, getAuthHeaders } from "../../utils/auth";
 import { CareerAtlasLogoMark } from "@/components/ui/CareerAtlasLogoMark";
 import { AppShell } from "../../components/AppShell";
+import { ConfirmModal } from "../../components/ui/ConfirmModal";
 
 interface ResumeVersion {
   id: number;
@@ -128,8 +129,16 @@ export default function ResumeManagerPage() {
     }
   };
 
-  const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
+
+  const handleDelete = (id: number, name: string) => {
+    setDeleteTarget({ id, name });
+  };
+
+  const executeDelete = async () => {
+    if (!deleteTarget) return;
+    const { id, name } = deleteTarget;
+    setDeleteTarget(null);
     try {
       const email = getUserEmail();
       const emailParam = email ? `?email=${encodeURIComponent(email)}` : "";
@@ -571,6 +580,16 @@ export default function ResumeManagerPage() {
         )}
       </div>
       </div>
+
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        title="Delete Resume Version"
+        message={`Are you sure you want to delete "${deleteTarget?.name}"? This action will permanently remove this version.`}
+        confirmLabel="Delete Version"
+        isDanger={true}
+        onConfirm={executeDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </AppShell>
   );
 }

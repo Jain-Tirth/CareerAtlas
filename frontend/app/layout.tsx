@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CareerOS - Autonomous Job Ingestion & Search",
+  title: "CareerAtlas - Autonomous Job Ingestion & Resume Matching",
   description: "Autonomous pipeline dashboard for career automation and parallel job discovery.",
 };
 

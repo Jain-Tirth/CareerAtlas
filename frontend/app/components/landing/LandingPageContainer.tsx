@@ -6,9 +6,8 @@ import { HeroSection } from "./HeroSection";
 import { PipelineSection } from "./PipelineSection";
 import { FeaturesSection } from "./FeaturesSection";
 import { FaqSection } from "./FaqSection";
-import { CtaSection } from "./CtaSection";
 import { Footer } from "./Footer";
-import { DoubleStairPreloader, HorizontalScrollStairs } from "./DoubleStairPreloader";
+import { DoubleStairPreloader} from "./DoubleStairPreloader";
 import { ScrollReveal, ScrollTextReveal } from "./ScrollReveal";
 
 export function LandingPageContainer() {
@@ -41,11 +40,6 @@ export function LandingPageContainer() {
 
             {/* Scroll-Driven Progressive Word Reveal */}
             <ScrollTextReveal text="Built for candidates who demand high-precision resume matching and deterministic career progression." />
-            
-            {/* In-View Horizontal Stair Step Progress Indicator */}
-            <ScrollReveal direction="up">
-              <HorizontalScrollStairs />
-            </ScrollReveal>
 
             <ScrollReveal direction="up">
               <PipelineSection />
@@ -57,10 +51,6 @@ export function LandingPageContainer() {
 
             <ScrollReveal direction="up">
               <FaqSection />
-            </ScrollReveal>
-
-            <ScrollReveal direction="up">
-              <CtaSection />
             </ScrollReveal>
           </main>
           <Footer />

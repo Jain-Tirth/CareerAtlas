@@ -9,6 +9,7 @@ import SearchCompletionCard from "../components/agent/SearchCompletionCard";
 import JobCardList, { JobResult } from "../components/agent/JobCardList";
 import RightInspectorPanel, { ParsedProfile } from "../components/agent/RightInspectorPanel";
 import { AppShell } from "../components/AppShell";
+import { ConfirmModal } from "../components/ui/ConfirmModal";
 import { Play, Loader2, Sparkles } from "lucide-react";
 
 export default function AutonomousAgentWorkspace() {
@@ -316,8 +317,14 @@ function WorkspaceInner() {
     setFinalResponse("");
   };
 
-  const handleClearHistory = async () => {
-    if (!confirm("Are you sure you want to clear match history and reset cache?")) return;
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  const handleClearHistory = () => {
+    setShowClearConfirm(true);
+  };
+
+  const executeClearHistory = async () => {
+    setShowClearConfirm(false);
     setIsLoadingResults(true);
     try {
       const email = getUserEmail() || profile?.email;
@@ -559,6 +566,16 @@ function WorkspaceInner() {
         onSelectSuggestion={(sugg) => setSearchTerm(sugg)}
       />
       </div>
+
+      <ConfirmModal
+        isOpen={showClearConfirm}
+        title="Clear Search History & Cache"
+        message="Are you sure you want to clear your saved search history and reset the match cache? This action cannot be undone."
+        confirmLabel="Clear Cache"
+        isDanger={true}
+        onConfirm={executeClearHistory}
+        onCancel={() => setShowClearConfirm(false)}
+      />
     </AppShell>
   );
 }

@@ -64,7 +64,7 @@ export default function AIActivityFeed({ messages, isSearching }: AIActivityFeed
               <div className="flex-1 bg-[#FFFBF7] border border-[#CCBEB1] rounded-2xl p-3.5 text-xs leading-relaxed text-[#664930]">
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-mono text-[10px] uppercase font-bold text-[#664930]">
-                    {msg.sender === "user" ? "User Request" : msg.sender === "agent" ? "CareerAtlas AI" : "System Log"}
+                    {msg.sender === "user" ? "User Request" : msg.sender === "agent" ? "CareerAtlas" : "System Log"}
                   </span>
                   <span className="font-mono text-[10px] text-[#997E67]" suppressHydrationWarning>{msg.timestamp}</span>
                 </div>
