@@ -481,15 +481,18 @@ ${this.stats.solelyExperienceReject}
           negative.push("Sparse profile data across multiple evidence dimensions.");
         }
 
-        // Generate explainability text reason
-        const accepted = cards.filter(c => c.type !== 'SUBTRACTIVE' && c.val > 0).map(c => c.description);
-        const gaps = cards.filter(c => c.type === 'SUBTRACTIVE' || (c.type === 'MULTIPLIER' && c.val < 1.0)).map(c => c.description);
+        // Generate clean plain-English fallback explanation
+        const allMatched = Array.from(new Set([...criticalSkillResult.matched, ...requiredSkillResult.matched, ...preferredSkillResult.matched]));
+        const allMissing = Array.from(new Set([...criticalSkillResult.missing, ...requiredSkillResult.missing, ...preferredSkillResult.missing]));
+        
         let explanation = '';
-        if (accepted.length > 0) {
-          explanation += `Strengths: ${accepted.join('; ')}. `;
+        if (allMatched.length > 0) {
+          explanation += `Matches your background in ${allMatched.slice(0, 4).join(', ')}. `;
+        } else {
+          explanation += `Strong alignment with candidate role preferences. `;
         }
-        if (gaps.length > 0) {
-          explanation += `Gaps: ${gaps.join('; ')}.`;
+        if (allMissing.length > 0) {
+          explanation += `Additional growth area: ${allMissing.slice(0, 3).join(', ')}.`;
         }
 
         const familySim = calculateFamilySimilarity(userFamilySub.family, jobFamilySub.family);

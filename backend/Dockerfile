@@ -58,6 +58,7 @@ RUN npm run build
 
 # Step 4: Environment settings
 ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-old-space-size=1536"
 EXPOSE 3001
 
 CMD ["node", "dist/main.js"]

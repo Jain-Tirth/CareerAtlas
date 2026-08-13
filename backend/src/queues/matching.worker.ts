@@ -129,41 +129,38 @@ export class MatchingWorker extends WorkerHost {
       const profileObj = await this.profileService.getProfileById(userId);
 
       for (const match of topJobs) {
-        const { job, finalScore, skillScore, semanticScore, experienceScore, reasoning } = match;
+        const { job, finalScore, skillScore, semanticScore, experienceScore, reasoning, matchedSkills, missingSkills } = match;
 
         // Generate personalized LLM reasoning explanation
         let aiReasoning = reasoning;
         if (profileObj) {
           try {
+            const matchedSkillsText = matchedSkills && matchedSkills.length > 0 ? matchedSkills.join(', ') : 'General software development skills';
+            const missingSkillsText = missingSkills && missingSkills.length > 0 ? missingSkills.join(', ') : 'None';
+            const projectsText = profileObj.projects && profileObj.projects.length > 0 ? profileObj.projects.join('; ') : 'Relevant technical projects';
+
             const reasoningPrompt = `
-              You are an expert career agent. Write a concise, 2-sentence explanation of why the following job matches (or why the matching score is slightly lower/higher) for the candidate.
-              
+              You are an expert AI Career Advisor. Write a natural, highly personalized 2-sentence career match note for candidate ${profileObj.fullName}.
+
               Job Details:
-              - Title: ${job.title}
-              - Company: ${job.company}
-              - Location: ${job.location}
+              - Position: ${job.title} at ${job.company} (${job.location})
               
               Candidate Profile:
-              - Name: ${profileObj.fullName}
-              - Skills: ${profileObj.skills.join(', ')}
-              - Experience: ${profileObj.experienceYears} years
+              - Full Name: ${profileObj.fullName}
+              - Total Work Experience: ${profileObj.experienceYears} years
+              - Key Skills: ${profileObj.skills.join(', ')}
+              - Key Projects: ${projectsText}
               
-              Match Analysis:
-              - Eligibility: ${match.eligibility}
-              - Match Score: ${finalScore}%
-              - Core Domain Match: Family (${match.familyScore}%), Subfamily (${match.subFamilyScore}%)
-              - Required Skills Match: ${match.requiredSkillScore}%
-              - Preferred Skills Match: ${match.preferredSkillScore}%
-              - Experience Score: ${experienceScore}%
-              - Location Score: ${match.locationScore}%
-              - Structured Match Details: ${reasoning}
-              
-              Guidelines:
-              1. If the candidate is a perfect match (all required skills matched, high score), write a highly positive response mentioning they are a perfect match.
-              2. If the candidate is missing any preferred skills, explain that the ranking is slightly lower because they miss specific preferred skills (mention those missing preferred skills).
-              3. If they failed eligibility or have low scores, be honest but professional about the mismatch in critical skills.
-              4. Explain the match clearly and professionally, highlighting the candidate's skills and projects that align.
-              5. Do not include any greeting or conversational fluff. Write exactly 2 sentences.
+              Match Breakdown:
+              - Overall Fit Score: ${finalScore}%
+              - Confirmed Matched Skills: ${matchedSkillsText}
+              - Missing / Desirable Skills: ${missingSkillsText}
+
+              Rules:
+              1. Speak directly in plain, professional English. Never mention internal scoring formulas, numbers like "+21 pts", or technical code terms like "Subfamily" / "Family" / "Cards".
+              2. Sentence 1: Highlight how the candidate's specific background in ${matchedSkillsText} or key projects makes them a compelling fit for ${job.title} at ${job.company}.
+              3. Sentence 2: If there are missing skills (${missingSkillsText}), explain naturally how picking up those skills would strengthen their application; if no missing skills, express strong confidence in their candidacy.
+              4. Write exactly 2 clean sentences with zero conversational filler or greetings.
             `;
             const startTime = Date.now();
             const response = await this.profileService.invokeModel(reasoningPrompt);

@@ -63,7 +63,7 @@ export class DiscoveryWorker extends WorkerHost {
     const discoveryStartTime = Date.now();
     try {
       // Helper to prevent any single scraper agent from hanging the discovery pipeline and log latency
-      const withTimeout = async <T>(agentPromise: Promise<T>, agentName: string, timeoutMs = 15000, fallback: T): Promise<{ data: T; durationMs: number }> => {
+      const withTimeout = async <T>(agentPromise: Promise<T>, agentName: string, timeoutMs = 25000, fallback: T): Promise<{ data: T; durationMs: number }> => {
         const agentStart = Date.now();
         const data = await Promise.race([
           agentPromise,
@@ -77,12 +77,12 @@ export class DiscoveryWorker extends WorkerHost {
         return { data, durationMs: Date.now() - agentStart };
       };
 
-      // Run discovery agents in parallel with 15-second individual safeguards
+      // Run discovery agents in parallel with 25-second individual safeguards
       const [atsRes, startupRes, indiaRes, linkedinRes] = await Promise.all([
-        withTimeout(this.atsPortalsAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears), 'ATS_PORTALS', 15000, []),
-        withTimeout(this.startupBoardsAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears), 'STARTUP_BOARDS', 15000, []),
-        withTimeout(this.indiaFocusedAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears), 'INDIA_FOCUSED', 15000, []),
-        withTimeout(this.linkedinAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears), 'LINKEDIN', 15000, []),
+        withTimeout(this.atsPortalsAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears), 'ATS_PORTALS', 25000, []),
+        withTimeout(this.startupBoardsAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears), 'STARTUP_BOARDS', 25000, []),
+        withTimeout(this.indiaFocusedAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears), 'INDIA_FOCUSED', 25000, []),
+        withTimeout(this.linkedinAgent.findJobs(searchTerm, locationSearch, page, currentCycle, experienceYears), 'LINKEDIN', 25000, []),
       ]);
 
       const atsJobs = atsRes.data;
