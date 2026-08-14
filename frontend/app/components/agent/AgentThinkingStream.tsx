@@ -14,7 +14,6 @@ export interface ThinkingLog {
 export interface PipelineStep {
   id: string;
   name: string;
-  description: string;
   status: "idle" | "running" | "success" | "error";
   errorDetails?: string;
 }
@@ -57,7 +56,7 @@ export default function AgentThinkingStream({
   // Derive header loop text from current running systematic step or latest log
   const currentRunningStep = pipelineSteps.find((s) => s.status === "running");
   const headerLoopTexts = currentRunningStep
-    ? [`${currentRunningStep.name}: ${currentRunningStep.description}`]
+    ? [`${currentRunningStep.name}`]
     : thinkingLogs.length > 0
     ? thinkingLogs.map((l) => l.text)
     : ["Systematic Profile Embedding...", "Scraper Ingestion Suite...", "Cosine Similarity Math..."];
@@ -117,9 +116,6 @@ export default function AgentThinkingStream({
               {/* Systematic Pipeline Execution Timeline */}
               {pipelineSteps.length > 0 && (
                 <div className="space-y-3 pb-4 border-b border-[#CCBEB1]/60">
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#664930] block">
-                    Systematic Pipeline Execution Stages
-                  </span>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 font-mono text-xs">
                     {pipelineSteps.map((step) => {
                       let statusBadge = (
@@ -159,35 +155,12 @@ export default function AgentThinkingStream({
                         >
                           <div className="min-w-0">
                             <span className="block truncate font-bold text-[#664930]">{step.name}</span>
-                            <span className="text-[10px] text-[#997E67] block truncate">{step.description}</span>
                           </div>
                           <div className="shrink-0">{statusBadge}</div>
                         </div>
                       );
                     })}
                   </div>
-                </div>
-              )}
-
-              {/* Real-time Systematic Execution Log Stream */}
-              {thinkingLogs.length > 0 && (
-                <div className="space-y-2 font-mono text-xs leading-relaxed max-h-48 overflow-y-auto">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#664930] block mb-1">
-                    Systematic Backend Execution Stream
-                  </span>
-                  {thinkingLogs.map((log) => (
-                    <div key={log.id} className="flex items-start gap-2 text-[#664930]">
-                      <span className="text-[#664930] font-bold select-none">•</span>
-                      <span className="font-mono text-xs">{log.text}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {isSearching && (
-                <div className="flex items-center gap-2 text-[#664930] text-xs italic font-sans animate-pulse pt-1 font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#664930] animate-ping" />
-                  <span>Executing systematic backend discovery pipeline...</span>
                 </div>
               )}
             </motion.div>

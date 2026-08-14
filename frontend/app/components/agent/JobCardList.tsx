@@ -2,7 +2,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { MapPin, Globe, Calendar, ExternalLink, CheckCircle2, AlertTriangle, Sparkles, Trash2, RefreshCw } from "lucide-react";
+import { MapPin, Globe, Calendar, ExternalLink, CheckCircle2, AlertTriangle, Trash2, RefreshCw } from "lucide-react";
 
 export interface JobResult {
   id: number;
@@ -64,7 +64,6 @@ export default function JobCardList({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#CCBEB1] pb-4 font-sans">
         <div>
           <h2 className="text-xl font-extrabold text-[#664930] flex items-center gap-2 tracking-tight font-sans">
-            <Sparkles className="w-5 h-5 text-[#664930]" />
             Ranked Opportunities ({jobs.length})
           </h2>
           <p className="text-xs text-[#997E67] mt-0.5 font-sans">
@@ -99,7 +98,6 @@ export default function JobCardList({
         </div>
       ) : jobs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 border border-dashed border-[#CCBEB1] rounded-2xl bg-[#FFFBF7] text-center font-sans">
-          <Sparkles className="w-10 h-10 text-[#CCBEB1] mb-3" />
           <span className="text-sm text-[#664930] font-bold">No recommendation results found yet</span>
           <span className="text-xs text-[#997E67] mt-1 max-w-sm">
             Select or upload a resume version above and click "Start Agent Search" to populate recommendations.
