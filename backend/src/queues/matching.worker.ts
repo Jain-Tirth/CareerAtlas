@@ -215,6 +215,18 @@ export class MatchingWorker extends WorkerHost {
       this.logger.log(`[LATENCY] [job-matching] Overall matching worker stage completed in ${totalMatchingMs}ms for run ${runId}`);
 
       await this.coordinator.updateStep(runId, 'step-7', 'success');
+
+      // Update agent search session history record with actual job count
+      try {
+        await this.db.query(
+          'UPDATE agent_search_sessions SET job_count = $1 WHERE run_id = $2',
+          [topJobs.length, runId],
+        );
+        this.logger.log(`[MATCHING-WORKER] Updated search session history job_count to ${topJobs.length} for run ${runId}`);
+      } catch (sessErr: any) {
+        this.logger.error(`[MATCHING-WORKER] Failed to update session job_count: ${sessErr.message}`);
+      }
+
       await this.coordinator.completeRun(runId, `Workflow completed successfully. Found ${topJobs.length} matching jobs.`);
 
       return { completed: true, count: topJobs.length };

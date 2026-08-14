@@ -2,15 +2,21 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { getUserEmail, getAuthHeaders } from "../utils/auth";
-import AgentSidebar, { StoredVersion, SearchSession } from "../components/agent/AgentSidebar";
+import AgentWorkspaceSidebar, { StoredVersion, SearchSession } from "../components/agent/AgentWorkspaceSidebar";
 import UploadHero from "../components/agent/UploadHero";
 import AgentThinkingStream, { ThinkingLog, PipelineStep } from "../components/agent/AgentThinkingStream";
 import SearchCompletionCard from "../components/agent/SearchCompletionCard";
 import JobCardList, { JobResult } from "../components/agent/JobCardList";
 import RightInspectorPanel, { ParsedProfile } from "../components/agent/RightInspectorPanel";
+import { AppShell } from "../components/AppShell";
+import { ConfirmModal } from "../components/ui/ConfirmModal";
 import { Play, Loader2, Sparkles } from "lucide-react";
 
 export default function AutonomousAgentWorkspace() {
+  return <WorkspaceInner />;
+}
+
+function WorkspaceInner() {
   // Active Profile & Versions
   const [profile, setProfile] = useState<ParsedProfile | null>(null);
   const [storedVersions, setStoredVersions] = useState<StoredVersion[]>([]);
@@ -234,38 +240,6 @@ export default function AutonomousAgentWorkspace() {
     }
   };
 
-  const handleSelectStoredVersion = async (versionId: number) => {
-    setSelectedVersionId(versionId);
-    const selectedName = storedVersions.find((v) => v.id === versionId)?.versionName || `Version #${versionId}`;
-
-    try {
-      const email = getUserEmail() || profile?.email || "";
-      const emailParam = email ? `?email=${encodeURIComponent(email)}` : "";
-      const res = await fetch(`/api/profile/versions/${versionId}/activate${emailParam}`, {
-        method: "POST",
-        headers: getAuthHeaders(),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.profile) {
-          const mapped = mapBackendProfileToParsedProfile(data.profile);
-          setProfile(mapped);
-          setLocationPref(mapped.targetLocation || "Ahmedabad");
-          setIsRemoteOpen(mapped.isRemoteOpen ?? true);
-          if (mapped.targetRole) setSearchTerm(mapped.targetRole);
-
-          setFinalResponse(`Activated resume version "${selectedName}" instantly from cached database records.`);
-          fetchSuggestions(mapped.email);
-          fetchResults(mapped.email);
-          fetchVersions();
-          fetchSearchHistory(versionId);
-        }
-      }
-    } catch (e: any) {
-      console.error("Failed to activate version:", e);
-    }
-  };
-
   const handleFileUpload = async (file: File) => {
     setIsParsing(true);
     startThinkingTimer();
@@ -337,8 +311,20 @@ export default function AutonomousAgentWorkspace() {
     }
   };
 
-  const handleClearHistory = async () => {
-    if (!confirm("Are you sure you want to clear match history and reset cache?")) return;
+  const handleNewSearch = () => {
+    setSearchCompleted(false);
+    setThinkingLogs([]);
+    setFinalResponse("");
+  };
+
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  const handleClearHistory = () => {
+    setShowClearConfirm(true);
+  };
+
+  const executeClearHistory = async () => {
+    setShowClearConfirm(false);
     setIsLoadingResults(true);
     try {
       const email = getUserEmail() || profile?.email;
@@ -480,24 +466,19 @@ export default function AutonomousAgentWorkspace() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFFBF7] text-[#664930] font-sans flex flex-col lg:flex-row overflow-x-hidden selection:bg-[#664930] selection:text-white">
-      {/* Left Sidebar */}
-      <AgentSidebar
-        storedVersions={storedVersions}
-        selectedVersionId={selectedVersionId}
-        onSelectVersion={handleSelectStoredVersion}
-        sessions={sessions}
-        onSelectSession={handleSelectSession}
-        onNewSearch={() => {
-          setSearchCompleted(false);
-          setThinkingLogs([]);
-          setFinalResponse("");
-        }}
-        isSearching={isSearching}
-      />
-
+    <AppShell
+      history={{ sessions, onSelect: handleSelectSession }}
+      workspaceSidebar={
+        <AgentWorkspaceSidebar
+          onNewSearch={handleNewSearch}
+          isSearching={isSearching}
+        />
+      }
+    >
+      <div className="flex flex-col lg:flex-row min-h-screen overflow-x-hidden">
       {/* Main Center AI Workspace */}
       <main className="flex-1 p-6 lg:p-8 space-y-6 max-w-4xl mx-auto w-full">
+        <>
         {/* Upload Hero / Compact Active Header */}
         <UploadHero
           onFileUpload={handleFileUpload}
@@ -567,6 +548,7 @@ export default function AutonomousAgentWorkspace() {
           onClearHistory={handleClearHistory}
           onRefresh={() => fetchResults(profile?.email)}
         />
+        </>
       </main>
 
       {/* Right Inspector Panel */}
@@ -583,6 +565,17 @@ export default function AutonomousAgentWorkspace() {
         suggestions={suggestions}
         onSelectSuggestion={(sugg) => setSearchTerm(sugg)}
       />
-    </div>
+      </div>
+
+      <ConfirmModal
+        isOpen={showClearConfirm}
+        title="Clear Search History & Cache"
+        message="Are you sure you want to clear your saved search history and reset the match cache? This action cannot be undone."
+        confirmLabel="Clear Cache"
+        isDanger={true}
+        onConfirm={executeClearHistory}
+        onCancel={() => setShowClearConfirm(false)}
+      />
+    </AppShell>
   );
 }

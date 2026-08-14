@@ -1,9 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Link from "next/link";
 import {
-  ArrowLeft,
   Check,
   Edit2,
   Trash2,
@@ -22,6 +20,8 @@ import {
 } from "lucide-react";
 import { getUserEmail, getAuthHeaders } from "../../utils/auth";
 import { CareerAtlasLogoMark } from "@/components/ui/CareerAtlasLogoMark";
+import { AppShell } from "../../components/AppShell";
+import { ConfirmModal } from "../../components/ui/ConfirmModal";
 
 interface ResumeVersion {
   id: number;
@@ -129,8 +129,16 @@ export default function ResumeManagerPage() {
     }
   };
 
-  const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Are you sure you want to delete "${name}"?`)) return;
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
+
+  const handleDelete = (id: number, name: string) => {
+    setDeleteTarget({ id, name });
+  };
+
+  const executeDelete = async () => {
+    if (!deleteTarget) return;
+    const { id, name } = deleteTarget;
+    setDeleteTarget(null);
     try {
       const email = getUserEmail();
       const emailParam = email ? `?email=${encodeURIComponent(email)}` : "";
@@ -257,25 +265,16 @@ export default function ResumeManagerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFFBF7] text-[#664930] font-sans antialiased">
-      <nav className="border-b border-[#CCBEB1] bg-white sticky top-0 z-50 shadow-xs">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between font-sans">
-          <Link href="/dashboard" className="flex items-center gap-2.5 group">
-            <CareerAtlasLogoMark size={32} showText />
+    <AppShell>
+      <div className="min-h-screen bg-[#FFFBF7] text-[#664930] font-sans antialiased">
+        <div className="px-6 py-5 border-b border-[#CCBEB1] flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <CareerAtlasLogoMark size={28} showText />
             <span className="text-[10px] font-mono bg-[#FFDBBB] text-[#664930] px-2 py-0.5 rounded border border-[#CCBEB1] font-bold">
               RESUME VAULT
             </span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/dashboard"
-              className="text-xs text-[#997E67] hover:text-[#664930] transition-colors flex items-center gap-1 font-sans font-semibold"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" /> Back to Dashboard
-            </Link>
           </div>
         </div>
-      </nav>
 
       <div className="max-w-6xl mx-auto px-6 py-10 font-sans">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-8 border-b border-[#CCBEB1] mb-10">
@@ -580,6 +579,17 @@ export default function ResumeManagerPage() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        title="Delete Resume Version"
+        message={`Are you sure you want to delete "${deleteTarget?.name}"? This action will permanently remove this version.`}
+        confirmLabel="Delete Version"
+        isDanger={true}
+        onConfirm={executeDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </AppShell>
   );
 }

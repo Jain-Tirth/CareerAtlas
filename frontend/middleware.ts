@@ -7,7 +7,7 @@ export function middleware(request: NextRequest) {
 
   // Define public vs protected path patterns
   const isLoginPage = pathname === '/login';
-  const isProtectedPage = pathname === '/dashboard' || pathname.startsWith('/dashboard/') || pathname === '/resumes' || pathname.startsWith('/resumes/');
+  const isProtectedPage = pathname === '/dashboard' || pathname.startsWith('/dashboard/') || pathname === '/resumes' || pathname.startsWith('/resumes/') || pathname === '/tracker' || pathname.startsWith('/tracker/');
 
   // If user is accessing login page with an active session cookie, redirect to dashboard
   if (isLoginPage && sessionToken) {
@@ -25,5 +25,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/resumes/:path*', '/login'],
+  matcher: ['/dashboard/:path*', '/resumes/:path*', '/tracker/:path*', '/login'],
 };

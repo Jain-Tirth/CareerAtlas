@@ -16,7 +16,7 @@ export function FeaturesSection() {
   const headerY = useTransform(scrollYProgress, [0, 0.2], [16, 0]);
 
   return (
-    <section ref={sectionRef} id="features" className="py-24 bg-transparent space-y-28">
+    <section ref={sectionRef} id="features" className="py-12 bg-transparent space-y-12 scroll-mt-24">
       <div className="max-w-6xl mx-auto px-6">
         {/* Section Header with 50% Scroll Blur Reveal */}
         <motion.div
@@ -38,11 +38,6 @@ export function FeaturesSection() {
         {/* Feature 1: Resume Matching */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center mb-28">
           <div className="lg:col-span-5 space-y-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FFDBBB] border border-[#CCBEB1] text-xs font-mono text-[#664930] font-bold">
-              <Sliders className="w-3.5 h-3.5" />
-              <span>CORE MATCH ENGINE</span>
-            </div>
-
             <h3 className="text-3xl font-extrabold text-[#664930] tracking-tight font-sans">
               Multi-Stage Resume Matching
             </h3>

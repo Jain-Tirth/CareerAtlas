@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ArrowDown, ArrowRight, ShieldCheck, Sparkles, Cpu, Target } from 'lucide-react';
+import {ArrowRight, Cpu} from 'lucide-react';
 import { motion, type Variants } from 'motion/react';
-import Link from 'next/link';
 import { isAuthenticated } from '@/app/utils/auth';
 
 interface NavLink {
@@ -41,16 +40,6 @@ const sectionVariants: Variants = {
       staggerChildren: 0.1,
       delayChildren: 0.14,
     },
-  },
-};
-
-const navVariants: Variants = {
-  hidden: { opacity: 0, y: -12, filter: 'blur(7px)' },
-  visible: {
-    opacity: 1,
-    y: 0,
-    filter: 'blur(0px)',
-    transition: { type: 'spring', duration: 0.62, bounce: 0 },
   },
 };
 
@@ -97,15 +86,10 @@ const buttonVariants: Variants = {
   },
 };
 
-import { CareerAtlasLogoMark } from '@/components/ui/CareerAtlasLogoMark';
-
 export default function Hero19({
-  brandName = 'CareerAtlas AI',
-  navLinks = navLinksDefault,
-  eyebrow = "DETERMINISTIC CAREER INTELLIGENCE ENGINE",
   headingLine1 = 'Where Resume Fits',
   headingLine2 = 'High-Impact Opportunities',
-  description = 'Upload your resume once. CareerAtlas converts your skills into 384-dimension vector embeddings to recommend jobs worth applying for—not thousands you will never qualify for.',
+  description = 'Upload your resume once. CareerAtlas uses your skills to recommend jobs worth applying for, not thousands you will never qualify for.',
   primaryCtaLabel,
   primaryCtaHref,
   secondaryCtaLabel = 'Explore Pipeline',
@@ -122,13 +106,10 @@ export default function Hero19({
 
   const dynamicPrimaryLabel = primaryCtaLabel || (isLoggedIn ? "Go to Dashboard" : "Get Started Free");
   const dynamicPrimaryHref = primaryCtaHref || (isLoggedIn ? "/dashboard" : "/login");
-  const dynamicBookingLabel = bookingLabel || (isLoggedIn ? "Dashboard" : "Sign in");
-  const dynamicBookingHref = bookingHref || (isLoggedIn ? "/dashboard" : "/login");
-
   return (
-    <section className="relative isolate min-h-screen overflow-hidden font-sans text-[#664930] bg-[#FFFBF7] antialiased pt-24 pb-8">
+    <section className="relative isolate overflow-hidden font-sans text-[#664930] bg-[#FFFBF7] antialiased pt-20 pb-4">
       <motion.div
-        className="relative flex min-h-[calc(100vh-6rem)] w-full flex-col overflow-hidden px-6 py-8 sm:px-10 lg:px-16 bg-white border border-[#CCBEB1] rounded-3xl shadow-xl shadow-slate-900/5 max-w-7xl mx-auto"
+        className="relative flex w-full flex-col overflow-hidden px-6 py-8 sm:px-10 lg:px-16 bg-white border border-[#CCBEB1] rounded-3xl shadow-xl shadow-slate-900/5 max-w-7xl mx-auto"
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.36 }}
@@ -143,10 +124,6 @@ export default function Hero19({
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-12 flex-1 items-center py-8">
           {/* Left Column: Kinetic Copy */}
           <div className="lg:col-span-7 max-w-[39rem]">
-            <motion.div variants={copyVariants} className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#FFDBBB] border border-[#CCBEB1] text-xs font-mono text-[#664930] mb-5 shadow-2xs font-bold">
-              <Sparkles className="w-3.5 h-3.5 text-[#664930]" />
-              <span>{eyebrow}</span>
-            </motion.div>
 
             <motion.h1
               variants={copyVariants}
@@ -195,7 +172,7 @@ export default function Hero19({
             <div className="flex items-center justify-between pb-3 border-b border-[#CCBEB1]">
               <div className="flex items-center gap-2">
                 <Cpu className="w-4 h-4 text-[#664930]" />
-                <span className="text-xs font-mono font-semibold text-[#664930] uppercase">Vector Matching Engine</span>
+                <span className="text-xs font-mono font-semibold text-[#664930] uppercase">Matching Engine</span>
               </div>
               <span className="text-[10px] font-mono bg-[#FFDBBB] text-[#664930] border border-[#CCBEB1] font-bold px-2 py-0.5 rounded-md">99.4% FIT</span>
             </div>
@@ -203,7 +180,7 @@ export default function Hero19({
             <div className="space-y-3">
               <div className="p-3 bg-white border border-[#CCBEB1] rounded-xl space-y-1">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-[#664930]">Senior AI Systems Lead</span>
+                  <span className="font-bold text-[#664930]">Senior Systems Engineering Lead</span>
                   <span className="font-mono text-[#997E67] font-bold">98.6% Match</span>
                 </div>
                 <p className="text-[11px] text-[#997E67] font-sans">Stripe • Remote • $210k - $260k</p>
@@ -217,21 +194,8 @@ export default function Hero19({
                 <p className="text-[11px] text-[#997E67] font-sans">Vercel • San Francisco • $190k - $240k</p>
               </div>
             </div>
-
-            <div className="pt-2 text-center text-xs text-[#997E67] font-sans">
-              Powered by Qdrant 384d Embeddings & Camoufox Anti-Detect Scraping
-            </div>
           </motion.div>
         </div>
-
-        <motion.a
-          variants={copyVariants}
-          href="#pipeline"
-          className="absolute right-7 bottom-6 z-20 hidden min-h-10 items-center gap-2 text-xs font-semibold text-slate-500 transition-colors hover:text-blue-600 md:inline-flex lg:right-12 lg:bottom-8"
-        >
-          {scrollLabel}
-          <ArrowDown className="size-3.5" />
-        </motion.a>
       </motion.div>
     </section>
   );

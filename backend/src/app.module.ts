@@ -6,6 +6,7 @@ import { LlmGatewayModule } from './llm-gateway/llm-gateway.module';
 import { QueuesModule } from './queues/queues.module';
 import { AuthModule } from './auth/auth.module';
 import { CryptoModule } from './crypto/crypto.module';
+import { JobsModule } from './jobs/jobs.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -17,6 +18,7 @@ import { HealthController } from './health.controller';
     AgentModule,
     AuthModule,
     CryptoModule,
+    JobsModule,
   ],
   controllers: [HealthController],
 })
