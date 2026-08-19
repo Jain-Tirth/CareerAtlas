@@ -21,7 +21,7 @@ export function KpiRow() {
   }));
 
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
       <div style={{ clipPath: ARROW_CLIP }} className="bg-[#664930] text-white px-4 py-3 min-w-0">
         <div className="text-2xl font-extrabold leading-none">{jobs.length}</div>
         <div className="text-[10px] font-mono uppercase tracking-wider text-white/70 mt-1">Total</div>
