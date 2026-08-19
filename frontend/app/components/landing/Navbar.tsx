@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { ArrowRight, LayoutDashboard, LogIn, UserPlus } from "lucide-react";
+import { ArrowRight, LayoutDashboard, LogIn, Menu, X } from "lucide-react";
 import { isAuthenticated } from "../../utils/auth";
-
 import { CareerAtlasLogoMark } from "@/components/ui/CareerAtlasLogoMark";
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     setIsLoggedIn(isAuthenticated());
@@ -29,7 +29,7 @@ export function Navbar() {
           : "bg-white/70 backdrop-blur-xs py-4 border-b border-slate-200/40"
       }`}
     >
-      <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between">
         {/* Brand Logo */}
         <Link href="/" className="flex items-center gap-3 group">
           <CareerAtlasLogoMark size={36} showText />
@@ -66,29 +66,79 @@ export function Navbar() {
           )}
         </nav>
 
-        {/* CTA Action Buttons */}
+        {/* Action Buttons & Mobile Hamburger */}
         <div className="flex items-center gap-3">
           {isLoggedIn ? (
             <Link
               href="/dashboard"
-              className="group relative inline-flex items-center justify-center gap-2 bg-[#664930] hover:bg-[#523a26] text-white text-sm font-semibold px-4 py-2 md:px-5 md:py-2.5 rounded-xl transition-all duration-200 shadow-md shadow-[#664930]/20 active:scale-95"
+              className="group relative inline-flex items-center justify-center gap-2 bg-[#664930] hover:bg-[#523a26] text-white text-xs sm:text-sm font-semibold px-3.5 py-2 sm:px-5 sm:py-2.5 rounded-xl transition-all duration-200 shadow-md shadow-[#664930]/20 active:scale-95"
             >
               <LayoutDashboard className="w-4 h-4" />
-              <span>Go to Dashboard</span>
+              <span className="hidden sm:inline">Go to Dashboard</span>
+              <span className="sm:hidden">Dashboard</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-200" />
             </Link>
           ) : (
             <Link
               href="/login"
-              className="group relative inline-flex items-center justify-center gap-2 bg-[#664930] hover:bg-[#523a26] text-white text-sm font-semibold px-4 py-2 md:px-5 md:py-2.5 rounded-xl transition-all duration-200 shadow-md shadow-[#664930]/20 active:scale-95"
+              className="group relative inline-flex items-center justify-center gap-2 bg-[#664930] hover:bg-[#523a26] text-white text-xs sm:text-sm font-semibold px-3.5 py-2 sm:px-5 sm:py-2.5 rounded-xl transition-all duration-200 shadow-md shadow-[#664930]/20 active:scale-95"
             >
               <LogIn className="w-4 h-4" />
-              <span>Log in / Sign up</span>
+              <span className="hidden sm:inline">Log in / Sign up</span>
+              <span className="sm:hidden">Log in</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-200" />
             </Link>
           )}
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            aria-label="Toggle Navigation Menu"
+            className="md:hidden p-2 rounded-xl border border-[#CCBEB1] bg-white text-[#664930] hover:bg-[#FFDBBB]/40 active:scale-95 transition-all"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile Navigation Dropdown */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-b border-[#CCBEB1]/60 bg-white/95 backdrop-blur-md px-6 py-4 space-y-3 font-sans shadow-lg animate-in slide-in-from-top-2 duration-200">
+          <nav className="flex flex-col space-y-3 text-sm font-bold text-[#997E67]">
+            <a
+              href="#how-it-works"
+              onClick={() => setMobileMenuOpen(false)}
+              className="hover:text-[#664930] transition-colors py-1"
+            >
+              How It Works
+            </a>
+            <a
+              href="#features"
+              onClick={() => setMobileMenuOpen(false)}
+              className="hover:text-[#664930] transition-colors py-1"
+            >
+              Features
+            </a>
+            <a
+              href="#faq"
+              onClick={() => setMobileMenuOpen(false)}
+              className="hover:text-[#664930] transition-colors py-1"
+            >
+              FAQ
+            </a>
+            {isLoggedIn && (
+              <Link
+                href="/dashboard/resumes"
+                onClick={() => setMobileMenuOpen(false)}
+                className="hover:text-[#664930] transition-colors py-1 flex items-center justify-between"
+              >
+                <span>Resumes Vault</span>
+                <span className="text-[10px] bg-[#FFDBBB] text-[#664930] font-mono px-2 py-0.5 rounded border border-[#CCBEB1]">VAULT</span>
+              </Link>
+            )}
+          </nav>
+        </div>
+      )}
     </header>
   );
 }

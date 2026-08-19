@@ -144,12 +144,12 @@ export default function Hero19({
 
             <motion.div
               variants={buttonRowVariants}
-              className="mt-8 flex flex-wrap items-center gap-4"
+              className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4"
             >
               <motion.a
                 variants={buttonVariants}
                 href={dynamicPrimaryHref}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#664930] px-7 text-base font-semibold text-white shadow-lg shadow-[#664930]/25 transition-all hover:bg-[#523a26] active:scale-[0.96]"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#664930] px-7 text-base font-semibold text-white shadow-lg shadow-[#664930]/25 transition-all hover:bg-[#523a26] active:scale-[0.96] w-full sm:w-auto"
               >
                 {dynamicPrimaryLabel}
                 <ArrowRight className="size-4" />
@@ -157,7 +157,7 @@ export default function Hero19({
               <motion.a
                 variants={buttonVariants}
                 href={secondaryCtaHref}
-                className="group inline-flex min-h-12 items-center gap-2 rounded-xl bg-white border border-[#CCBEB1] px-6 text-base font-semibold text-[#664930] shadow-xs transition-all hover:bg-[#FFFBF7] active:scale-[0.96]"
+                className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white border border-[#CCBEB1] px-6 text-base font-semibold text-[#664930] shadow-xs transition-all hover:bg-[#FFFBF7] active:scale-[0.96] w-full sm:w-auto"
               >
                 {secondaryCtaLabel}
               </motion.a>

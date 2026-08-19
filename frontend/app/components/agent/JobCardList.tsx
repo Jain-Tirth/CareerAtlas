@@ -139,7 +139,7 @@ export default function JobCardList({
                 className="bg-white rounded-2xl border border-[#CCBEB1] p-6 flex flex-col justify-between hover:border-[#664930] transition-all shadow-md group font-sans"
               >
                 <div>
-                  <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-4 mb-3">
                     <div className="min-w-0">
                       <h3 className="text-base font-bold text-[#664930] truncate transition-colors font-sans">
                         {item.title}

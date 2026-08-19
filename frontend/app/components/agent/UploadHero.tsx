@@ -63,11 +63,11 @@ export default function UploadHero({
                 <FileText className="w-5 h-5 text-[#664930]" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono font-bold text-[#664930] truncate max-w-xs sm:max-w-md">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-mono font-bold text-[#664930] truncate max-w-[200px] xs:max-w-xs sm:max-w-md">
                     {activeResumeName}
                   </span>
-                  <span className="text-[10px] bg-[#FFDBBB] border border-[#CCBEB1] text-[#664930] font-mono font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <span className="text-[10px] bg-[#FFDBBB] border border-[#CCBEB1] text-[#664930] font-mono font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
                     <CheckCircle2 className="w-2.5 h-2.5 text-[#664930]" /> Active Version
                   </span>
                 </div>

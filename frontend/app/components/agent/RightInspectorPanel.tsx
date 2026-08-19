@@ -45,7 +45,7 @@ export default function RightInspectorPanel({
   onSelectSuggestion,
 }: RightInspectorProps) {
   return (
-    <aside className="w-full lg:w-80 bg-[#FFFBF7] border-l border-[#CCBEB1] p-5 flex flex-col shrink-0 h-full min-h-[calc(100vh-4rem)] space-y-6 font-sans">
+    <aside className="w-full lg:w-80 bg-[#FFFBF7] border-t lg:border-t-0 lg:border-l border-[#CCBEB1] p-4 sm:p-5 flex flex-col shrink-0 space-y-6 font-sans">
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-[#CCBEB1]/60">
         <div className="flex items-center gap-2">

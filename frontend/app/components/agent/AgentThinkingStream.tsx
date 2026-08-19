@@ -14,6 +14,7 @@ export interface ThinkingLog {
 export interface PipelineStep {
   id: string;
   name: string;
+  description?: string;
   status: "idle" | "running" | "success" | "error";
   errorDetails?: string;
 }

@@ -135,7 +135,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen w-full flex bg-[#FFFBF7] font-sans antialiased text-[#664930]">
       {/* LEFT SECTION: 30% Width Auth Form */}
-      <div className="w-full lg:w-[32%] xl:w-[30%] flex flex-col justify-between p-8 sm:p-12 z-10 bg-white border-r border-[#CCBEB1] shadow-xl">
+      <div className="w-full lg:w-[32%] xl:w-[30%] flex flex-col justify-between p-6 sm:p-10 lg:p-12 z-10 bg-white border-r border-[#CCBEB1] shadow-xl">
         <div>
           <div className="flex items-center justify-between mb-10">
             <a href="/" className="flex items-center gap-3">

@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, Kanban, History, LogOut } from "lucide-react";
+import { LayoutDashboard, FileText, Kanban, History, LogOut, Menu, X } from "lucide-react";
 import { CareerAtlasLogoMark } from "@/components/ui/CareerAtlasLogoMark";
 import { logout } from "@/app/utils/auth";
 import type { SearchSession } from "@/app/components/agent/AgentWorkspaceSidebar";
@@ -32,6 +32,7 @@ export function AppShell({
   const historyRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!historyOpen) return;
@@ -51,19 +52,78 @@ export function AppShell({
     };
   }, [historyOpen]);
 
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
+
   const toggleHistory = () => {
     setHistoryOpen((o) => !o);
   };
 
   return (
-    <div className="min-h-screen bg-[#FFFBF7] text-[#664930] font-sans flex">
-      <aside className="w-64 shrink-0 bg-[#FFFBF7] border-r border-[#CCBEB1] p-5 flex flex-col justify-between sticky top-0 h-screen">
+    <div className="min-h-screen bg-[#FFFBF7] text-[#664930] font-sans flex flex-col md:flex-row overflow-x-hidden">
+      {/* Mobile Top Header (Visible on md and smaller) */}
+      <header className="md:hidden sticky top-0 z-40 bg-[#FFFBF7] border-b border-[#CCBEB1] px-4 py-3 flex items-center justify-between shadow-sm">
+        <Link href="/" className="flex items-center gap-2">
+          <CareerAtlasLogoMark size={28} showText />
+        </Link>
+        
+        <div className="flex items-center gap-2">
+          {history && (
+            <button
+              onClick={toggleHistory}
+              aria-label="Recent Scans History"
+              className="p-2 rounded-xl border border-[#CCBEB1] bg-white text-[#997E67] hover:text-[#664930] active:bg-[#FFDBBB]"
+            >
+              <History className="w-4 h-4" />
+            </button>
+          )}
+          
+          <button
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            aria-label="Toggle Navigation Menu"
+            className="p-2 rounded-xl border border-[#CCBEB1] bg-white text-[#664930] hover:bg-[#FFDBBB]/40 active:scale-95 transition-all"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
+      </header>
+
+      {/* Mobile Navigation Drawer Backdrop */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-[#664930]/20 backdrop-blur-xs md:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Navigation Sidebar (Desktop + Mobile Slide-over Drawer) */}
+      <aside
+        className={`bg-[#FFFBF7] border-r border-[#CCBEB1] p-5 flex flex-col justify-between shrink-0 transition-transform duration-300 ${
+          /* Desktop Styles */
+          "hidden md:flex md:w-64 md:sticky md:top-0 md:h-screen"
+        } ${
+          /* Mobile Drawer Styles */
+          mobileMenuOpen
+            ? "fixed inset-y-0 left-0 z-50 w-72 flex flex-col shadow-2xl translate-x-0"
+            : "fixed inset-y-0 left-0 z-50 w-72 flex flex-col -translate-x-full md:translate-x-0"
+        }`}
+      >
         <div className="space-y-6 overflow-y-auto">
           <div className="flex items-center justify-between pb-4 border-b border-[#CCBEB1]/60">
             <Link href="/" className="flex items-center gap-2.5 group">
               <CareerAtlasLogoMark size={32} showText />
             </Link>
+            <button
+              onClick={() => setMobileMenuOpen(false)}
+              className="md:hidden p-1.5 rounded-lg text-[#997E67] hover:text-[#664930]"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
+
           <nav className="space-y-1.5">
             {NAV_LINKS.map((link) => {
               const active = pathname === link.href || pathname === `${link.href}/`;
@@ -72,6 +132,7 @@ export function AppShell({
                 <Link
                   key={link.href}
                   href={link.href}
+                  onClick={() => setMobileMenuOpen(false)}
                   className={`flex items-center gap-2.5 text-xs font-bold px-3 py-2.5 rounded-xl border transition-all ${
                     active
                       ? "bg-[#FFDBBB] border-[#CCBEB1] text-[#664930]"
@@ -86,7 +147,10 @@ export function AppShell({
             {history && (
               <button
                 ref={historyRef}
-                onClick={toggleHistory}
+                onClick={() => {
+                  toggleHistory();
+                  setMobileMenuOpen(false);
+                }}
                 className={`w-full flex items-center gap-2.5 text-xs font-bold px-3 py-2.5 rounded-xl border transition-all ${
                   historyOpen
                     ? "bg-[#FFDBBB] border-[#CCBEB1] text-[#664930]"
@@ -98,21 +162,31 @@ export function AppShell({
               </button>
             )}
           </nav>
+
           {workspaceSidebar && (
             <div className="pt-4 border-t border-[#CCBEB1]/60">{workspaceSidebar}</div>
           )}
         </div>
-        <button
-          onClick={() => void logout()}
-          className="w-full flex items-center gap-2.5 text-xs font-bold text-[#664930] hover:text-red-700 p-2.5 rounded-xl hover:bg-red-50 transition-all"
-        >
-          <LogOut className="w-4 h-4 text-[#997E67] group-hover:text-red-700 transition-colors" />
-          <span>Log out</span>
-        </button>
+
+        <div className="pt-4 border-t border-[#CCBEB1]/60">
+          <button
+            onClick={() => void logout()}
+            className="w-full flex items-center gap-2.5 text-xs font-bold text-[#664930] hover:text-red-700 p-2.5 rounded-xl hover:bg-red-50 transition-all"
+          >
+            <LogOut className="w-4 h-4 text-[#997E67] group-hover:text-red-700 transition-colors" />
+            <span>Log out</span>
+          </button>
+        </div>
       </aside>
+
+      {/* Main Page Body */}
       <main className="flex-1 min-w-0">
-        <div className={historyOpen ? "blur-md transition-[filter] duration-300" : "transition-[filter] duration-300"}>{children}</div>
+        <div className={historyOpen ? "blur-md transition-[filter] duration-300" : "transition-[filter] duration-300"}>
+          {children}
+        </div>
       </main>
+
+      {/* Recent History Modal / Popover */}
       {historyOpen && (
         <>
           <div
@@ -122,7 +196,7 @@ export function AppShell({
           />
           <div
             ref={popoverRef}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] w-96 max-w-[calc(100vw-2rem)] rounded-2xl border border-[#CCBEB1] bg-white shadow-xl font-sans"
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] w-96 max-w-[calc(100vw-2rem)] rounded-2xl border border-[#CCBEB1] bg-white shadow-xl font-sans p-1"
           >
             <div className="flex items-center gap-2 px-4 py-3 border-b border-[#CCBEB1]/60">
               <History className="w-4 h-4 text-[#664930]" />
