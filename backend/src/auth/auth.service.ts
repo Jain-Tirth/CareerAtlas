@@ -56,21 +56,34 @@ export class AuthService {
     // 3. Generate 6-digit numeric OTP
     const otp = crypto.randomInt(100000, 1000000).toString();
 
-    // 4. Store OTP in Redis (5 min TTL = 300s)
+    // 4. Store Salted + Peppered OTP Hash in Redis (5 min TTL = 300s)
     if (this.redis) {
-      await this.redis.set(`otp:code:${email}`, otp, 'EX', 300);
+      const salt = crypto.randomBytes(16).toString('hex');
+      const hashedOtp = this.hashOtpWithSalt(otp, salt);
+      const payload = JSON.stringify({ hash: hashedOtp, salt });
+
+      await this.redis.set(`otp:code:${email}`, payload, 'EX', 300);
       await this.redis.del(`otp:failed_attempts:${email}`);
     }
 
     // 5. Send via Google SMTP
     await this.mailService.sendOtpEmail(email, otp);
-    this.logger.log(`[AUTH] Sent 6-digit OTP to ${email}`);
+    this.logger.log(`[AUTH] Sent 6-digit OTP (Hashed with Salt+Pepper in Redis) to ${email}`);
 
     return {
       success: true,
       message: 'Verification code sent to your email.',
       expiresInSeconds: 300,
     };
+  }
+
+  private getPepperSecret(): string {
+    return process.env.PEPPER_SECRET || process.env.OTP_PEPPER_SECRET || 'careeratlas-global-application-pepper-secret-key-v1';
+  }
+
+  private hashOtpWithSalt(otp: string, salt: string): string {
+    const pepper = this.getPepperSecret();
+    return crypto.createHmac('sha256', pepper).update(otp + salt).digest('hex');
   }
 
   async verifyOtp(rawEmail: string, submittedOtp: string): Promise<{ success: boolean; message: string; user: any; token: string; isFirstTime?: boolean; expiresAt?: string }> {
@@ -87,12 +100,28 @@ export class AuthService {
         throw new HttpException('Too many failed attempts. Account temporarily locked for 10 minutes.', HttpStatus.TOO_MANY_REQUESTS);
       }
 
-      const storedOtp = await this.redis.get(`otp:code:${email}`);
-      if (!storedOtp) {
+      const storedPayload = await this.redis.get(`otp:code:${email}`);
+      if (!storedPayload) {
         throw new HttpException('OTP expired or invalid. Please request a new code.', HttpStatus.BAD_REQUEST);
       }
 
-      if (storedOtp !== cleanOtp) {
+      let isMatch = false;
+      try {
+        if (storedPayload.startsWith('{')) {
+          const { hash: storedHash, salt } = JSON.parse(storedPayload);
+          const submittedHash = this.hashOtpWithSalt(cleanOtp, salt);
+          const storedBuf = Buffer.from(storedHash, 'hex');
+          const submittedBuf = Buffer.from(submittedHash, 'hex');
+          isMatch = storedBuf.length === submittedBuf.length && crypto.timingSafeEqual(storedBuf, submittedBuf);
+        } else {
+          // Backward compatibility fallback for unhashed plaintext legacy Redis keys
+          isMatch = storedPayload === cleanOtp;
+        }
+      } catch (err) {
+        isMatch = false;
+      }
+
+      if (!isMatch) {
         const attempts = await this.redis.incr(`otp:failed_attempts:${email}`);
         await this.redis.expire(`otp:failed_attempts:${email}`, 300);
 

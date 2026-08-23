@@ -79,9 +79,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       await client.query(`
         CREATE TABLE IF NOT EXISTS users (
           id SERIAL PRIMARY KEY,
-          full_name VARCHAR(255) NOT NULL,
+          full_name TEXT NOT NULL,
           email VARCHAR(255) UNIQUE NOT NULL,
-          phone VARCHAR(50),
+          phone TEXT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
@@ -103,6 +103,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
       // Ensure new columns and types exist for existing tables
       await client.query(`
+        ALTER TABLE users ALTER COLUMN full_name TYPE TEXT;
+        ALTER TABLE users ALTER COLUMN phone TYPE TEXT;
         ALTER TABLE user_preferences ALTER COLUMN experience_years TYPE NUMERIC(3,1);
         ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS salary_expectation INTEGER;
         ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS education TEXT[] DEFAULT '{}';

@@ -147,4 +147,51 @@ export class CryptoService implements OnModuleInit {
     const payload: EncryptedPayload = JSON.parse(serializedEncryptedPayload);
     return this.decryptPayload<T>(payload);
   }
+
+  /**
+   * Guarantees a 32-byte AES key derived from STORAGE_ENCRYPTION_KEY env
+   */
+  private getStorageKey(): Buffer {
+    const rawKey = this.configService.get<string>('STORAGE_ENCRYPTION_KEY') || 'careeratlas-storage-encryption-32byte-key!';
+    return crypto.createHash('sha256').update(rawKey).digest();
+  }
+
+  /**
+   * Encrypts sensitive string (e.g. phone, resume text, PII) using AES-256-GCM
+   */
+  public encryptSymmetric(text: string): string {
+    if (!text || typeof text !== 'string') return text;
+    const key = this.getStorageKey();
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    const tag = cipher.getAuthTag().toString('hex');
+    return `enc_gcm:${iv.toString('hex')}:${tag}:${encrypted}`;
+  }
+
+  /**
+   * Decrypts AES-256-GCM encrypted payload back to plaintext. Fallback to raw text if unencrypted legacy row.
+   */
+  public decryptSymmetric(encryptedString: string): string {
+    if (!encryptedString || typeof encryptedString !== 'string' || !encryptedString.startsWith('enc_gcm:')) {
+      return encryptedString;
+    }
+    try {
+      const parts = encryptedString.split(':');
+      if (parts.length !== 4) return encryptedString;
+      const [, ivHex, tagHex, ciphertextHex] = parts;
+      const key = this.getStorageKey();
+      const iv = Buffer.from(ivHex, 'hex');
+      const tag = Buffer.from(tagHex, 'hex');
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+      decipher.setAuthTag(tag);
+      let decrypted = decipher.update(ciphertextHex, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return decrypted;
+    } catch (err: any) {
+      this.logger.warn(`Failed to decrypt AES-256-GCM symmetric payload: ${err.message}`);
+      return encryptedString;
+    }
+  }
 }

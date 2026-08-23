@@ -3,6 +3,8 @@ import { DatabaseService } from '../vector-store/database.service';
 import { EmbeddingsService } from '../embeddings/embeddings.service';
 import { QdrantService } from '../vector-store/qdrant.service';
 import { LlmGatewayService } from '../llm-gateway/llm-gateway.service';
+import { CryptoService } from '../crypto/crypto.service';
+import { redactPii } from '../utils/pii-redactor.utility';
 import { PromptTemplate } from '@langchain/core/prompts';
 import pdfParse from 'pdf-parse';
 import { Subject, Observable } from 'rxjs';
@@ -48,6 +50,7 @@ export class ProfileService {
     private readonly embeddingsService: EmbeddingsService,
     private readonly qdrantService: QdrantService,
     private readonly llmGatewayService: LlmGatewayService,
+    private readonly cryptoService: CryptoService,
   ) {}
 
   emitTaskEvent(taskId: string | undefined, status: 'running' | 'success' | 'error', log: string, errorDetails?: string, profile?: UserProfile) {
@@ -480,14 +483,23 @@ canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
     try {
       await client.query('BEGIN');
 
-      // 1. Upsert into users table
+      // Ensure column types in PostgreSQL can store encrypted ciphertext strings
+      await client.query(`
+        ALTER TABLE users ALTER COLUMN full_name TYPE TEXT;
+        ALTER TABLE users ALTER COLUMN phone TYPE TEXT;
+      `).catch(() => {});
+
+      // 1. Upsert into users table with AES-256-GCM encrypted PII
+      const encryptedName = this.cryptoService.encryptSymmetric(profile.fullName);
+      const encryptedPhone = this.cryptoService.encryptSymmetric(profile.phone || '');
+
       const userRes = await client.query(`
         INSERT INTO users (full_name, email, phone)
         VALUES ($1, $2, $3)
         ON CONFLICT (email)
         DO UPDATE SET full_name = EXCLUDED.full_name, phone = EXCLUDED.phone
         RETURNING id;
-      `, [profile.fullName, profile.email, profile.phone]);
+      `, [encryptedName, profile.email, encryptedPhone]);
 
       const userId = userRes.rows[0].id;
       profile.id = userId;
@@ -523,16 +535,15 @@ canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
         `, [userId, skill]);
       }
 
-      // 5. Generate User Embedding
-      // As per requirements: "User embedding should contain: Projects, Experience, Achievements, Education, and Skills"
-      const textToEmbed = [
+      // 5. Generate User Embedding with PII Redaction
+      const textToEmbed = redactPii([
         `Target Roles: ${profile.preferredRoles.join(', ')}`,
         `Core Skills & Keywords: ${profile.skills.join(', ')}`,
         `Education: ${profile.education.join('. ')}`,
         `Projects: ${profile.projects.join('. ')}`,
         `Achievements: ${profile.achievements.join('. ')}`,
         `Experience Years: ${profile.experienceYears}`
-      ].join('\n');
+      ].join('\n'));
 
       this.emitTaskEvent(taskId, 'running', 'Generating 384-dimensional vector embedding for candidate profile...');
       this.logger.log('[PROFILE] Generating User Embedding...');
@@ -592,11 +603,14 @@ canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
 
       const skills = skillsRes.rows.map(r => r.skill);
 
+      const decryptedName = this.cryptoService.decryptSymmetric(user.full_name);
+      const decryptedPhone = this.cryptoService.decryptSymmetric(user.phone);
+
       return {
         id: user.id,
-        fullName: user.full_name,
+        fullName: decryptedName,
         email: user.email,
-        phone: user.phone,
+        phone: decryptedPhone,
         skills,
         experienceYears: pref.experience_years,
         education: pref.education || [],
@@ -716,11 +730,13 @@ canonical_role: ${JSON.stringify(savedProfile.preferredRoles)}
 
       const finalVersionName = await this.getUniqueVersionName(userId, versionName);
 
+      const encryptedRawText = this.cryptoService.encryptSymmetric(rawText || '');
+
       const res = await client.query(`
         INSERT INTO resume_versions (user_id, version_name, is_active, raw_text, parsed_data)
         VALUES ($1, $2, $3, $4, $5)
         RETURNING *;
-      `, [userId, finalVersionName, makeActive, rawText || '', JSON.stringify(profile)]);
+      `, [userId, finalVersionName, makeActive, encryptedRawText, JSON.stringify(profile)]);
 
       await client.query('COMMIT');
       return res.rows[0];
