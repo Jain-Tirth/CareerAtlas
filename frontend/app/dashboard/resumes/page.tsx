@@ -18,7 +18,7 @@ import {
   ChevronDown,
   ChevronUp
 } from "lucide-react";
-import { getUserEmail, getAuthHeaders } from "../../utils/auth";
+import { getUserEmail, getAuthHeaders, isAuthenticated } from "../../utils/auth";
 import { CareerAtlasLogoMark } from "@/components/ui/CareerAtlasLogoMark";
 import { AppShell } from "../../components/AppShell";
 import { ConfirmModal } from "../../components/ui/ConfirmModal";
@@ -54,6 +54,10 @@ export default function ResumeManagerPage() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   useEffect(() => {
+    if (!isAuthenticated()) {
+      window.location.href = "/login";
+      return;
+    }
     fetchVersions();
   }, []);
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { getUserEmail, getAuthHeaders } from "../utils/auth";
+import { getUserEmail, getAuthHeaders, isAuthenticated } from "../utils/auth";
 import AgentWorkspaceSidebar, { StoredVersion, SearchSession } from "../components/agent/AgentWorkspaceSidebar";
 import UploadHero from "../components/agent/UploadHero";
 import AgentThinkingStream, { ThinkingLog, PipelineStep } from "../components/agent/AgentThinkingStream";
@@ -65,6 +65,10 @@ function WorkspaceInner() {
 
   // Load existing profile, versions, search history, and results on mount
   useEffect(() => {
+    if (!isAuthenticated()) {
+      window.location.href = "/login";
+      return;
+    }
     fetchProfile().then(() => {
       fetchResults();
       fetchVersions();

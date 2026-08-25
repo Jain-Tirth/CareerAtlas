@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { isAuthenticated } from "../../utils/auth";
 import { Navbar } from "./Navbar";
 import { HeroSection } from "./HeroSection";
 import { PipelineSection } from "./PipelineSection";
@@ -12,6 +14,14 @@ import { ScrollReveal, ScrollTextReveal } from "./ScrollReveal";
 
 export function LandingPageContainer() {
   const pageRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  // Auto-redirect authenticated users directly to /dashboard
+  useEffect(() => {
+    if (isAuthenticated()) {
+      router.replace("/dashboard");
+    }
+  }, [router]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!pageRef.current) return;
